@@ -1,0 +1,1610 @@
+  <chapter>
+    <title>试试egg </title>
+
+    <sect1><title>先介绍概念</title>
+      
+      <sect2><title>field</title>
+	<para id="egg_fieldexp">
+      field相当于数据库里的一个colum，是egg里面最小的存储单元。	
+	</para>
+    <screen>
+      <![CDATA[
+
+
+-----------------------------------------------------------------------------
+
+      //1. anlyzer  选项组(必选)
+
+      //分词建立索引，词库为中文语义分词
+       #define  EGG_ANALYZED                            (1 << 1)
+      //全文内容匹配建立索引
+       #define  EGG_NOT_ANALYZED                        (1 << 2)   
+      //分词建立索引，中文语义分词
+       #define  EGG_CWS_ANALYZED                        EGG_ANALYZED
+      //分词建立索引，中文单字分词
+       #define  EGG_CN_ANALYZED                         (1 << 9)
+      //分词建立索引，符号分词
+       #define  EGG_CY_ANALYZED                         (1 << 10)
+      //分词建立索引，第三方分词器
+       #define  EGG_OTHER_ANALYZED                      (1 << 12)
+
+-----------------------------------------------------------------------------
+
+      //2. fieldValue type 选项组(必选)
+
+      //字符串类型
+       #define  EGG_INDEX_STRING                        (1 << 3)
+      //int 类型
+       #define  EGG_INDEX_INT32                         (1 << 4)
+      //long long 类型
+       #define  EGG_INDEX_INT64                         (1 << 5)
+      //double 类型
+       #define  EGG_INDEX_DOUBLE                        (1 << 6)
+
+-----------------------------------------------------------------------------
+
+      //3. index type 选项组(可选)
+
+      //不建立索引
+       #define  EGG_NOT_INDEX                           (1 << 0)
+      //建立通用索引 (key->value精确定位)
+       #define  EGG_NORMAL_INDEX                        (1 << 14)
+      //建立适合key范围查询索引
+       #define  EGG_RANGE_INDEX                         (1 << 15)
+
+-----------------------------------------------------------------------------
+
+      //4. storage 选项组(可选)
+
+      //该field里的数据实体存储
+       #define  EGG_STORAGE                             (1 << 7)
+      //该field里的数据实体不存储
+       #define  EGG_NOT_STORAGE                         (1 << 8)
+
+-----------------------------------------------------------------------------
+
+      //5. 个性化的配置选项 选项组(可选)
+
+      //为分词器指定附加词库
+       #define  EGG_OTHER_DICT                          (1 << 13)
+
+-----------------------------------------------------------------------------
+
+
+
+      //创建一个field实例
+       HEGGFIELD EGGAPI eggField_new(const echar* lpName,
+                                     const echar* lpValue, size32_t nSize,
+                                     type_t type, ...);
+
+      //销毁一个field实例
+       EBOOL EGGAPI eggField_delete(HEGGFIELD hEggField);
+
+      //复制一个field实例
+       EBOOL  eggField_dup(HEGGFIELD hEggField,
+                           const echar* lpName, size32_t nNameSize,
+                           const echar* lpValue, size32_t nValSize,
+                           type_t type, char* analyzerName);
+
+      //得到一个域里面的内容
+       echar* EGGAPI eggField_get_value(HEGGFIELD hEggField, size32_t* lpnSize);
+
+      //设置一个域里面的内容
+       EBOOL EGGAPI eggField_set_value(HEGGFIELD hEggField, const echar* lpValue, size32_t nSize);
+
+      //得到一个域里面的类型
+       type_t EGGAPI eggField_get_type(HEGGFIELD hEggField);
+
+      //得到一个域的名字
+       echar* EGGAPI eggField_get_name(HEGGFIELD hEggField);
+
+      //设置额外词库名字
+       EBOOL EGGAPI eggField_set_dictname(HEGGFIELD hEggField, const echar* dictName);
+
+
+      //example
+       HEGGFIELD hField1 = eggField_new("content", buf, strlen(buf), EGG_CWS_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+   
+       HEGGFIELD hField2 = eggField_new("title", buf, strlen(buf), EGG_OTHER_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE, "ImC2LexAnalyzer");
+
+       HEGGFIELD hField3 = eggField_new("price", &price_num, sizeof(price_num), EGG_NOT_ANALYZED | EGG_INDEX_DOUBLE | EGG_STORAGE);
+        ]]>
+    </screen>
+	<literallayout>
+     介绍一下eggField_new函数
+     parm1 ： 域名
+     parm2 ： 域值
+     parm3 ： 域值长度
+     parm4 ： 域的类型总共有五个方面，就是上面define里定义的四组宏定义，设置的基本规则是前2组是必选，要各选一个(也仅能选择一个)，后3组是可选类型（不选择有默认配置）
+
+     如果选择第三方分词器(EGG_OTHER_ANALYZED),则把该分词器的名字添加到parm5上,比如field2的创建
+
+     第3组是设置该域索引的类型，不同的类型将导致索引的内置结构不同，则直接影响不同场景的查询效率，详细的描述请看<link linkend="field_indextype">域索引类型</link>，不选默认为 EGG_NORMAL_INDEX
+
+     第4组设置该域内容是否存储，默认是EGG_STORAGE 
+
+     第5组是一些个性化设置，目前只有一个为分词器添加额外词库的设置，默认设置是没有这个选项的，EGG_OTHER_DICT不能和EGG_NOT_ANALYZED搭配使用，而且并不是在eggField_new里面设置，有专门的接口eggField_set_dictname设置, 详情请看<link linkend="add_dict">额外词库的添加</link>
+
+     比如EGG_CWS_ANALYZED|EGG_INDEX_STRING，代表的是这个域建立索引，且采用中文分词 (EGG_CWS_ANALYZED)，域的类型是字符串(EGG_INDEX_STRING), 并且这个域将会被存储(默认)，采用EGG_NORMAL_INDEX类型的索引(默认)，不添加额外的词库(默认)。
+
+    </literallayout>
+    <para>
+      更多的有关域的操作见<link linkend="field_operation">域操作</link>
+    </para>
+    </sect2>
+     
+      <sect2><title>document</title>
+	    <para>
+          document相当于数据库里的一个行，或者说是一个record。一个document又多个field组成，field 的type可以是多种多样，相互并无影响。每个document都有一个doc id，这是egg能确定该document实体的唯一标识	      
+	    </para>
+    <screen>
+      <![CDATA[
+        //构造一个document实例
+        HEGGDOCUMENT EGGAPI eggDocument_new();
+        
+        //销毁一个document实例
+        EBOOL EGGAPI eggDocument_delete(HEGGDOCUMENT hEggDocument);
+
+        //往document里面添加一个域
+        EBOOL EGGAPI eggDocument_add(HEGGDOCUMENT hEggDocument, HEGGFIELD hEggField);
+
+        //通过域名(lpNameField)从document里面得到一个域
+        HEGGFIELD EGGAPI eggDocument_get_field(HEGGDOCUMENT hEggDocument, const echar* lpNameField);
+
+       //通过域名(lpNameField)从document里面直接得到这个域的值
+        size32_t EGGAPI eggDocument_get_doc(HEGGDOCUMENT hEggDocument, const echar* lpNameField, echar** lppDoc);
+
+        //通过域名(lpNameField)设置该document里面的域值(lpDoc,长度nDocSize)
+        EBOOL EGGAPI eggDocument_set_doc(HEGGDOCUMENT hEggDocument,
+                                         const echar* lpNameField,
+                                         const echar* lpDoc, size32_t nDocSize);
+
+
+        //设置该document的权值(查询的时候可按照权重排序)
+        EBOOL EGGAPI eggDocument_set_weight(HEGGDOCUMENT hEggDocument, int weight);
+
+        //得到该document的权值
+        int EGGAPI eggDocument_get_weight(HEGGDOCUMENT hEggDocument);
+
+        //example
+        HEGGDOCUMENT hDocument = eggDocument_new();
+   
+        HEGGFIELD hField1 = eggField_new(fieldname, buf, strlen(buf), EGG_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE, "ImCwsAnalyzer");
+        HEGGFIELD hField2 = eggField_new(fieldname, buf, strlen(buf), EGG_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE, "ImCwsAnalyzer");
+   
+        eggDocument_add(hDocument, hField1);
+        eggDocument_add(hDocument, hField2);
+
+        eggDocument_delete(hDocument);
+
+        ]]>
+    </screen>
+	<literallayout>
+      上面的例子演示了field和document的联合操作，从而产生一个完整的document
+
+      1 初始化一个document实例
+    <code>
+        HEGGDOCUMENT hDocument = eggDocument_new();
+    </code>
+
+      2 构造一个field      
+    <code>
+        HEGGFIELD hField1 = eggField_new(fieldname, buf, strlen(buf), EGG_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE, "ImCwsAnalyzer");
+    </code>
+ 
+      3 把field加入document里面
+    <code>
+        eggDocument_add(hDocument, hField1);
+    </code>
+
+      4 销毁这个document， 里面field也会一并销毁 
+    <code>
+        eggDocument_delete(hDocument);
+    </code>
+
+
+	</literallayout>
+        
+      </sect2>
+      
+      <sect2><title>eggHandle</title>
+	    <para>
+    	   eggHandle模块用于指定egg数据文件的路径，类似于linux的open函数，它支持本地，socket，cluster和RWS四种不同模式下的路径格式，会自动判断不同的路径格式选取对应的模式启动egg.(下面是格式介绍，后3种的详细解释请看<link linkend="egg_socket">socket</link>，<link linkend="egg_cluster">cluster</link>和<link linkend="egg_RWS">RWS</link>)
+	    </para>
+
+          <orderedlist>
+
+
+            <listitem>        
+              <para>
+                local :  file://文件的路径, 比如"file:///tmp/egg3/"
+              </para>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                socket : tcp://ip:port/远程机器文件路径, 比如"tcp://127.0.0.1:8888/tmp/egg/"
+              </para>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                cluster : cluster://ip:port/egg的名称, 比如"cluster://127.0.0.1:10000/bas"
+              </para>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                RWS : rws://ip:port/eggrws路径, 比如 "rws://127.0.0.1:12000/tmp/egg/"
+              </para>
+            </listitem>        
+              <para>
+               四种格式里的路径都是建立在以<link linkend="egg_basepath">basepath</link>为根的路径之下
+               
+              </para>
+
+          </orderedlist>
+        <screen>
+          <![CDATA[
+          //传入一个path，打开egg
+          HEGGHANDLE eggPath_open(const char * path);
+
+          //销毁这个eggHandle
+          EBOOL eggPath_close(HEGGHANDLE hEggHandle );
+
+          //example
+
+          HEGGHANDLE handle1 = eggPath_open("file:///eggdata/");
+
+          eggPath_close(handle1);
+        ]]>
+        </screen>
+        
+      </sect2>
+      
+      <sect2><title>IndexWriter</title>
+	    <para>
+          eggIndexWriter是egg的写操作对象,通过加载eggHandle，定位具体的egg，负责该egg所有的修改文件操作.
+	    </para>
+        <screen>
+          <![CDATA[
+          
+          //加载eggHandle为对应的egg生成 一个indexWriter
+          HEGGINDEXWRITER EGGAPI eggIndexWriter_open(void *hEggHandle, char *weigfield);
+
+          //销毁eggIndexWriter句柄
+          EBOOL EGGAPI eggIndexWriter_close(HEGGINDEXWRITER hEggIndexWriter);
+
+          //把一篇document加入到indexWriter里 
+          EBOOL EGGAPI eggIndexWriter_add_document(HEGGINDEXWRITER hEggIndexWriter, HEGGDOCUMENT hEggDocument);
+
+          //删除did对应的document
+          EBOOL EGGAPI eggIndexWriter_delete_document(HEGGINDEXWRITER hEggIndexWriter_, EGGDID dId);
+
+          //修改did对应的document
+          EBOOL EGGAPI eggIndexWriter_modify_document(HEGGINDEXWRITER hEggIndexWriter_, EGGDID dId, HEGGDOCUMENT hNewDocument);
+
+          //提交indexWriter里的操作到磁盘
+          EBOOL EGGAPI eggIndexWriter_optimize(HEGGINDEXWRITER hEggIndexWriter);
+
+          //由该indexWriter产生一个indexReader句柄，该indexReader对indexWriter对应的egg据有所有的读操作，且共享indexWriter里面缓冲区内的数据
+          HEGGINDEXREADER EGGAPI  eggIndexWriter_init_reader(HEGGINDEXWRITER hIndexWriter);
+
+          //对document里的数据进行增量式修改
+          EBOOL EGGAPI eggIndexWriter_incrementmodify_document(HEGGINDEXWRITER hEggIndexWriter_, EGGDID dId, HEGGDOCUMENT hNewDocument);
+
+        ]]>
+        </screen>
+	    <para>
+          有关eggIndexWriter的操作例子这里不详细讲，请参看 egg的<link linkend="egg_add">增</link>，<link linkend="egg_del">删</link>，<link linkend="egg_modify">改</link>。
+          
+	    </para>
+        
+      </sect2>
+      
+      <sect2><title>IndexReader</title>
+	    <para>
+          eggIndexReader是egg的读操作对象,通过加载eggHandle，定位具体的egg，负责读取egg的内容
+          
+	    </para>
+
+        <screen>
+          <![CDATA[
+
+           //创建一个IndexReader句柄
+           HEGGINDEXREADER EGGAPI eggIndexReader_open(void *hEggHandle);
+
+           //销毁一个IndexReader句柄
+           EBOOL EGGAPI eggIndexReader_close(HEGGINDEXREADER hIndexReader);
+
+           //通过dId获得对应的document
+           EBOOL EGGAPI eggIndexReader_get_document(HEGGINDEXREADER hEggIndexReader, EGGDID dId, HEGGDOCUMENT* ppeggDocument);
+
+           //释放一个indexReader句柄，该句柄必须是通过eggIndexWriter_init_reader创建 
+           EBOOL EGGAPI eggIndexReader_free(HEGGINDEXREADER hIndexReader);
+
+        ]]>
+        </screen>
+        <para>
+          indexReader一般不会独立的调用， 都是结合indexSearcher来实现完整的查询过程，调用请参看<link linkend="egg_search">查询</link>例子
+        </para>
+        
+      </sect2>
+
+      <sect2><title>IndexSearcher</title>
+	    <para>
+	      eggIndexSearcher是内置一个eggIndexReader ,根据eggQuery可进行复杂的多域 "与或" 联合查询,实现完整的全文检索流程
+	    </para>
+
+        <screen>
+          <![CDATA[
+            //创建一个IndexSearcher句柄
+            HEGGINDEXSEARCHER EGGAPI eggIndexSearcher_new(HEGGINDEXREADER hIndexReader);
+
+            //销毁一个IndexSearcher句柄
+            EBOOL EGGAPI eggIndexSearcher_delete(HEGGINDEXSEARCHER hIndexSearcher);
+
+            //查询(id全返回)
+            EBOOL EGGAPI eggIndexSearcher_search_with_query(HEGGINDEXSEARCHER hIndexSearcher, HEGGTOPCOLLECTOR hTopCollector, HEGGQUERY hQuery);
+
+            //翻页查询(id每次只返回一页)
+            EBOOL EGGAPI eggIndexSearcher_search_with_queryiter(HEGGINDEXSEARCHER hIndexSearcher, HEGGTOPCOLLECTOR hTopCollector, HEGGQUERY hQuery, HEGGSEARCHITER hIter);
+
+            //从indexSearcher里面获得一个翻页迭代器
+            HEGGSEARCHITER EGGAPI eggIndexSearcher_get_queryiter(HEGGINDEXSEARCHER hIndexSearcher);
+          
+                  
+        ]]>
+        </screen>
+
+        <para>
+          eggIndexSearcher_search_with_query参数parm1为indexSearcher句柄， parm2为查询结果集收集句柄，parm3为查询条件. eggIndexSearcher_search_with_queryiter多了一个翻页迭代器句柄hIter,该句柄用来控制查询每页返回过来的数据，跳页操作，一般用于<link linkend="egg_cluster">cluster版</link>的egg查询,常规查询和翻页查询请参看<link linkend="egg_search">这里</link>
+ 
+        </para>
+        
+        
+      </sect2>
+      
+      <sect2 id="eggquery"><title>query</title>
+	    <para>
+          eggQuery是个复杂化查询的载体, 专为实现复杂的逻辑化("与或")多域联合查询; 一次 eggQuery_new_*产生的query句柄仅可能对单一的field进行多关键字的索引,且为多关键字'与'查询(结果包括所有关键字) 但是多个query可以通过eggQuery_and和eggQuery_or，进行多次组合，生成一个多重查询要求的逻辑语法树，在加载进IndexSearcher里进行多重查找。了解更多请查看<link linkend="eggquery_detail">这里</link>
+	    </para>
+
+        <screen>
+          <![CDATA[
+            //构造一个query实例,字符串查询
+            HEGGQUERY EGGAPI eggQuery_new_string(const char* fieldName, const echar* keyword, size16_t keywordSz, char *analyzerName);
+
+            //构造一个query实例,32位整形查询
+            HEGGQUERY EGGAPI eggQuery_new_int32(const char* fieldName, int32_t number1);
+
+            //构造一个query实例,64位整形查询
+            HEGGQUERY EGGAPI eggQuery_new_int64(const char* fieldName, int64_t number1);
+
+            //构造一个query实例,double查询
+            HEGGQUERY EGGAPI eggQuery_new_double(const char* fieldName, double number1);
+
+            //构造一个query实例,短语查询
+            HEGGQUERY EGGAPI eggQuery_new_phrase(const char* fieldName, const echar* keyword, size16_t keywordSz, char *analyzerName);
+
+            //构造一个query实例,句子查询
+            HEGGQUERY EGGAPI eggQuery_new_sentence(const char* fieldName, const echar* keyword, size16_t keywordSz, char *analyzerName);
+
+            //构造一个query实例,double范围查询,number1<= ... <= number2
+            HEGGQUERY EGGAPI eggQuery_new_doublerange(const char* fieldName, double number1, double number2);
+            
+            //构造一个query实例,double范围查询,number1<= ... < number2
+            HEGGQUERY EGGAPI eggQuery_new_doublerange_en(const char* fieldName, double number1, double number2);
+            
+            //构造一个query实例,double范围查询,number1< ... <= number2
+            HEGGQUERY EGGAPI eggQuery_new_doublerange_ne(const char* fieldName, double number1, double number2);
+
+            //构造一个query实例,double范围查询,number1< ... < number2
+            HEGGQUERY EGGAPI eggQuery_new_doublerange_nn(const char* fieldName, double number1, double number2);
+            
+            //构造一个query实例,double范围查询,number1< ...
+            HEGGQUERY EGGAPI eggQuery_new_doublerange_gt(const char* fieldName, double number1);
+            
+            //构造一个query实例,double范围查询,number1<= ...
+            HEGGQUERY EGGAPI eggQuery_new_doublerange_ge(const char* fieldName, double number1);
+            
+            //构造一个query实例,double范围查询, ... < number2
+            HEGGQUERY EGGAPI eggQuery_new_doublerange_lt(const char* fieldName, double number2);
+
+            //构造一个query实例,double范围查询, ... <= number2
+            HEGGQUERY EGGAPI eggQuery_new_doublerange_le(const char* fieldName, double number2);
+
+            //构造一个query实例,double范围查询, -unlimited < ... < +unlimited
+            HEGGQUERY EGGAPI eggQuery_new_doublerange_all(const char* fieldName);
+
+            //构造一个query实例,32位整形范围查询, number1<= ... <= number2
+            HEGGQUERY EGGAPI eggQuery_new_int32range(const char* fieldName, int32_t number1, int32_t number2);
+
+            //构造一个query实例,32位整形范围查询,number1<= ... < number2
+            HEGGQUERY EGGAPI eggQuery_new_int32range_en(const char* fieldName, int32_t number1, int32_t number2);
+            
+            //构造一个query实例,32位整形范围查询,number1< ... <= number2
+            HEGGQUERY EGGAPI eggQuery_new_int32range_ne(const char* fieldName, int32_t number1, int32_t number2);
+
+            //构造一个query实例,32位整形范围查询,number1< ... < number2
+            HEGGQUERY EGGAPI eggQuery_new_int32range_nn(const char* fieldName, int32_t number1, int32_t number2);
+            
+            //构造一个query实例,32位整形范围查询,number1< ...
+            HEGGQUERY EGGAPI eggQuery_new_int32range_gt(const char* fieldName, int32_t number1);
+            
+            //构造一个query实例,32位整形范围查询,number1<= ...
+            HEGGQUERY EGGAPI eggQuery_new_int32range_ge(const char* fieldName, int32_t number1);
+            
+            //构造一个query实例,32位整形范围查询, ... < number2
+            HEGGQUERY EGGAPI eggQuery_new_int32range_lt(const char* fieldName, int32_t number2);
+
+            //构造一个query实例,32位整形范围查询, ... <= number2
+            HEGGQUERY EGGAPI eggQuery_new_int32range_le(const char* fieldName, int32_t number2);
+
+            //构造一个query实例,32位整形范围查询, -unlimited < ... < +unlimited
+            HEGGQUERY EGGAPI eggQuery_new_int32range_all(const char* fieldName);
+
+            //构造一个query实例,64位整形范围查询,number1<= ... <= number2
+            HEGGQUERY EGGAPI eggQuery_new_int64range(const char* fieldName, int64_t number1, int64_t number2);
+
+            //构造一个query实例,64位整形范围查询,number1<= ... < number2
+            HEGGQUERY EGGAPI eggQuery_new_int64range_en(const char* fieldName, int64_t number1, int64_t number2);
+            
+            //构造一个query实例,64位整形范围查询,number1< ... <= number2
+            HEGGQUERY EGGAPI eggQuery_new_int64range_ne(const char* fieldName, int64_t number1, int64_t number2);
+
+            //构造一个query实例,64位整形范围查询,number1< ... < number2
+            HEGGQUERY EGGAPI eggQuery_new_int64range_nn(const char* fieldName, int64_t number1, int64_t number2);
+            
+            //构造一个query实例,64位整形范围查询,number1< ...
+            HEGGQUERY EGGAPI eggQuery_new_int64range_gt(const char* fieldName, int64_t number1);
+            
+            //构造一个query实例,64位整形范围查询,number1<= ...
+            HEGGQUERY EGGAPI eggQuery_new_int64range_ge(const char* fieldName, int64_t number1);
+            
+            //构造一个query实例,64位整形范围查询, ... < number2
+            HEGGQUERY EGGAPI eggQuery_new_int64range_lt(const char* fieldName, int64_t number2);
+
+            //构造一个query实例,64位整形范围查询, ... <= number2
+            HEGGQUERY EGGAPI eggQuery_new_int64range_le(const char* fieldName, int64_t number2);
+
+            //构造一个query实例,64位整形范围查询, -unlimited < ... < +unlimited
+            HEGGQUERY EGGAPI eggQuery_new_int64range_all(const char* fieldName);
+
+            //构造一个query实例,字符串范围查询, start <= ... <= end
+            HEGGQUERY EGGAPI eggQuery_new_stringrange(const char* fieldName, char *start, char *end);
+            
+            //构造一个query实例,字符串范围查询, start <= ... < end
+            HEGGQUERY EGGAPI eggQuery_new_stringrange_en(const char* fieldName, char *start, char *end);
+            
+            //构造一个query实例,字符串范围查询, start < ... < end
+            HEGGQUERY EGGAPI eggQuery_new_stringrange_nn(const char* fieldName, char *start, char *end);
+            
+            //构造一个query实例,字符串范围查询, start < ... <= end
+            HEGGQUERY EGGAPI eggQuery_new_stringrange_ne(const char* fieldName, char *start, char *end);
+            
+            //构造一个query实例,字符串范围查询, start < ...
+            HEGGQUERY EGGAPI eggQuery_new_stringrange_gt(const char* fieldName, char *start);
+            
+            //构造一个query实例,字符串范围查询, start <= ...
+            HEGGQUERY EGGAPI eggQuery_new_stringrange_ge(const char* fieldName, char *start);
+            
+            //构造一个query实例,字符串范围查询, ... < end
+            HEGGQUERY EGGAPI eggQuery_new_stringrange_lt(const char* fieldName, char *end);
+            
+            //构造一个query实例,字符串范围查询, ... <= end
+            HEGGQUERY EGGAPI eggQuery_new_stringrange_le(const char* fieldName, char *end);
+            
+            //构造一个query实例,字符串范围查询,  -unlimited < ... < +unlimited
+            HEGGQUERY EGGAPI eggQuery_new_stringrange_all(const char* fieldName);
+
+            //构造一个联合query实例,找出同时满足hQueryExpress1与hQueryExpress2的document
+            HEGGQUERY EGGAPI eggQuery_and(HEGGQUERY hQueryExpress1, HEGGQUERY hQueryExpress2);
+
+            //构造一个联合query实例,找出满足hQueryExpress1或者hQueryExpress2的document 
+            HEGGQUERY EGGAPI eggQuery_or(HEGGQUERY hQueryExpress1, HEGGQUERY hQueryExpress2);
+
+            //构造一个联合query实例,找出满足hQueryExpress1但不满足hQueryExpress2的document 
+            HEGGQUERY EGGAPI eggQuery_minus(HEGGQUERY hQueryExpress1, HEGGQUERY hQueryExpress2);
+
+            //销毁一个query实例
+            EBOOL EGGAPI eggQuery_delete(HEGGQUERY hQuery);
+            
+        ]]>
+        </screen>
+    	<literallayout>
+        下面这段代码简单的演示了eggQuery的条件组合调用,eggQuery_new_string可初始化一个查询字符串域(数字类型的域查询类似)的query句柄.
+
+        parm1为要查询的域名;
+        parm2为查询的关键字串;
+        parm3为关键字串长度;
+        parm4为分词器名字,目前默认有4种分词器(ANALYZER_CNLEX：中文单字分词，ANALYZER_CYLEX：符号分词,ANALYZER_CWSLEX：中文语义分词，ANALYZER_CXLEX：中文单字分词),若要关键字串全匹配,parm4＝“”, 若有第三方分词器调用请看<link linkend="egg_mutiAnalyzer">这里</link>. 分词器将对关键字串进行分词,将分出的词进行多词的交集查询(比如 “hello world” 字串ANALYZER_CWSLEX将分为 “hello”和 “world”,查出“hello”对应的doc和“world”对应的doc做交集(只要是一个query里分出的词，结果集的关系都是交集)，分词详情请参看<link linkend="egg_analy">语义分词</link>)，eggQuery的完整查询过查请看<link linkend="egg_search">这里</link>，复杂的迭代调用请看<link linkend="egg_itersearch">复杂条件查询</link>。
+
+        eggQuery1和eggQuery2做并集操作产生eggQuery3，eggQuery3所代表的含义是：在content域内包含“hello world”(采用cws分词)的doc，与title域内包含”egg docbook”（关键字全匹配）的doc做并集操作
+		</literallayout>
+        
+        <screen>
+          <![CDATA[
+
+          #define ANALYZER_CNLEX "ImCnLexAnalyzer"
+          #define ANALYZER_CYLEX "ImCyLexAnalyzer"
+          #define ANALYZER_CWSLEX "ImCwsLexAnalyzer"
+          #define ANALYZER_CXLEX "ImCxLexAnalyzer"
+
+          char* lp_field_name = "content";
+          char* lp_key_word = "hello world !";
+          char *analyzerName = ANALYZER_CWSLEX;
+
+          HEGGQUERY hQuery1 = eggQuery_new_string(lp_field_name, lp_key_word, strlen(lp_key_word), analyzerName);
+
+          lp_field_name = "title";
+          lp_key_word = "egg docbook !";
+          char *analyzerName = "";
+
+          HEGGQUERY hQuery2 = eggQuery_new_string(lp_field_name, lp_key_word, strlen(lp_key_word), analyzerName);
+
+          HEGGQUERY hQuery3 = eggQuery_and(hQuery1, hQuery2);
+          
+        ]]>
+        </screen>
+
+      </sect2>
+      
+      <sect2><title>TopCollector</title>
+	<para>
+	  TopCollector负责检索结果的处理，存放了结果的doc id和相关信息，可对结果进行整合（如相关度打分，各类排序），使得结果按照要求的次序排列
+	</para>
+	
+	<screen>
+      <![CDATA[
+    //构造eggTopCollector实例
+    HEGGTOPCOLLECTOR EGGAPI eggTopCollector_new(count_t nNumHits);
+
+    //销毁eggTopCollector实例
+    EBOOL EGGAPI eggTopCollector_delete(HEGGTOPCOLLECTOR hTopCollector);
+ 
+    //复制一份eggTopCollector实例
+    HEGGTOPCOLLECTOR EGGAPI eggTopCollector_dup(HEGGTOPCOLLECTOR hTopCollector);
+
+    //得到查询结果的id总数
+    count_t EGGAPI eggTopCollector_total(HEGGTOPCOLLECTOR hTopCollector);
+
+    //得到当前eggTopCollector内包含的实际id总数
+    count_t EGGAPI eggTopCollector_total_hits(HEGGTOPCOLLECTOR hTopCollector);
+
+    //获得id数组
+    HEGGSCOREDOC EGGAPI eggTopCollector_top_docs(HEGGTOPCOLLECTOR hTopCollector);
+
+    //设置id结果的排序方式（内置的几种排序）
+    PUBLIC EBOOL eggTopCollector_set_sorttype(HEGGTOPCOLLECTOR hTopCollector, type_t sortType);
+
+    //设置orderby排序，可根据多个非字串域的内容进行orderby排序，且可指定升降序（1为升，0为降）
+    PUBLIC EBOOL eggTopCollector_set_orderby(HEGGTOPCOLLECTOR hTopCollector,
+                                             size16_t cnt,
+                                             char *fieldName,
+                                             EBOOL isAsc, ...);
+
+        ]]>
+    </screen>
+
+	<literallayout>
+
+    简要介绍一下两个接口函数和其相关功能
+
+    eggTopCollector支持三种简单的序列
+
+
+    1. EGG_TOPSORT_SCORE(相关度打分排序)
+    2. EGG_TOPSORT_WEIGHT(权重打分排序, document权重排序,可通过eggDocument_set_weight设置)
+    3. EGG_TOPSORT_NOT(不做排序)
+
+    通过eggTopCollector_set_sorttype来设置，参数sorttype填上面的一个选项，不能多选，调用过程请看<link linkend="egg_search">简单的查询例子</link>，这里不详述。
+	</literallayout>
+	<screen>
+      <![CDATA[
+      //1. EGG_TOPSORT_SCORE(相关度打分排序)
+      //2. EGG_TOPSORT_WEIGHT(权重打分排序, document权重排序,可通过eggDocument_set_weight设置)
+      //3. EGG_TOPSORT_NOT(不做排序)
+       PUBLIC EBOOL eggTopCollector_set_sorttype(HEGGTOPCOLLECTOR hTopCollector, type_t sortType);
+
+        ]]>
+    </screen>
+	<literallayout>		
+
+    另外eggTopCollector还支持类似orderby这样的涉及多个域（非字符串域）内容的多重排序，通过eggTopCollector_set_orderby来设置。
+
+
+    parm1  为topCollector的句柄；
+    parm2  表示后面有几对可变参数；
+    parm3  为要排序域的域名
+    parm4  为升降序
+    ...... 后面为可变参数，像parm3和parm4那样成对出现
+
+
+    比如 下面的例子表示为先按price域的升序排，里面相同的再按照time的降序排
+
+    关于eggTopCollector_set_orderby的详细应用请看<link linkend="egg_mutiSort">这里</link>
+	</literallayout>
+
+	<screen>
+      <![CDATA[
+       PUBLIC EBOOL eggTopCollector_set_orderby(HEGGTOPCOLLECTOR hTopCollector,
+                                                size16_t cnt,
+                                                char *fieldName,
+                                                EBOOL isAsc, ...);
+      //example
+       eggTopCollector_set_orderby(hTopCollector, 2, "price", 1, "time", 0);
+        ]]>
+    </screen>
+
+      </sect2>
+      
+    </sect1>
+    
+    <sect1><title>再看看例子</title>
+      <para>
+       下面是egg的一些基本操作的例子,所有的代码都是可以通过下面的通式编译过的
+	    
+      </para>
+      <screen>
+      <![CDATA[
+      "gcc  ./eggsource.c -o eggsource `pkg-config egg3 glib-2.0 --cflags --libs`".
+      ]]>
+      </screen>
+      
+      <sect2><title>增</title>
+	    <para id="egg_add">
+    该例子是egg的添加过程，一共添加了3篇document，每篇document有3个域，分别是content，title和time，3个域的type参数不相同，具体含义可看<link linkend="egg_fieldexp">field</link>的介绍,一次提交操作(optimize)，egg数据存放在名为/tmp/的子目录下面	      
+ 	    </para>
+
+      <screen>
+      <![CDATA[
+#include <egg3/Egg3.h>
+int main()
+{
+     HEGGHANDLE hHandle = eggPath_open("file:///tmp/");
+     
+     HEGGINDEXWRITER hIndexWriter = eggIndexWriter_open(hHandle, "");
+     
+     
+     {
+         HEGGDOCUMENT hDocument = eggDocument_new();
+
+         HEGGFIELD hField1 = eggField_new("title", "hello egg", strlen("hello egg") + 1,
+                                          EGG_NOT_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+         HEGGFIELD hField2 = eggField_new("content", "egg is a good docdb", strlen("egg is a good docdb") + 1,
+                                          EGG_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+         int time = 20120101;
+         HEGGFIELD hField3 = eggField_new("time", (void*)&time, sizeof(time),
+                                          EGG_NOT_ANALYZED | EGG_INDEX_INT32 | EGG_STORAGE);
+         
+         eggDocument_add(hDocument, hField1);
+         eggDocument_add(hDocument, hField2);
+         eggDocument_add(hDocument, hField3);
+         
+         eggDocument_set_weight(hDocument, 2);
+         eggIndexWriter_add_document(hIndexWriter, hDocument);
+         
+         eggDocument_delete(hDocument);
+     }
+
+     {
+         HEGGDOCUMENT hDocument = eggDocument_new();
+
+         HEGGFIELD hField1 = eggField_new("title", "hello god", strlen("hello god") + 1,
+                                          EGG_NOT_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+         HEGGFIELD hField2 = eggField_new("content", "god is a good boy", strlen("god is a good boy") + 1,
+                                          EGG_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+         int time = 20120102;
+         HEGGFIELD hField3 = eggField_new("time", (void*)&time, sizeof(time),
+                                          EGG_NOT_ANALYZED | EGG_INDEX_INT32 | EGG_STORAGE);
+         
+         eggDocument_add(hDocument, hField1);
+         eggDocument_add(hDocument, hField2);
+         eggDocument_add(hDocument, hField3);
+         
+         eggDocument_set_weight(hDocument, 1);
+         eggIndexWriter_add_document(hIndexWriter, hDocument);
+         
+         eggDocument_delete(hDocument);
+     }
+     
+     {
+         HEGGDOCUMENT hDocument = eggDocument_new();
+
+         HEGGFIELD hField1 = eggField_new("title", "hello world", strlen("hello world") + 1,
+                                          EGG_NOT_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+         HEGGFIELD hField2 = eggField_new("content", "world is a good place", strlen("world is a good place") + 1,
+                                          EGG_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+         int time = 20120103;
+         HEGGFIELD hField3 = eggField_new("time", (void*)&time, sizeof(time),
+                                          EGG_NOT_ANALYZED | EGG_INDEX_INT32 | EGG_STORAGE);
+         
+         eggDocument_add(hDocument, hField1);
+         eggDocument_add(hDocument, hField2);
+         eggDocument_add(hDocument, hField3);
+         
+         eggDocument_set_weight(hDocument, 3);
+         eggIndexWriter_add_document(hIndexWriter, hDocument);
+         
+         eggDocument_delete(hDocument);
+     }
+     
+     eggIndexWriter_optimize(hIndexWriter);
+     eggIndexWriter_close(hIndexWriter);
+     eggPath_close(hHandle);
+
+     return 0;
+}
+     
+        ]]>
+      </screen>
+      <para>
+        代码下载      <ulink url="file:./sample/eggadd.c">eggadd.c</ulink>
+      </para>
+
+
+      <orderedlist><title>代码流程解析</title>
+      <listitem>
+        <para>
+指定要访问的egg路径
+        </para>
+        <screen>
+          HEGGHANDLE hHandle = eggPath_open("file:///tmp/");
+        </screen>
+      </listitem>
+
+      <listitem>
+        <para>
+          获得这个egg的写权限
+        </para>
+        <screen>
+          HEGGINDEXWRITER hIndexWriter = eggIndexWriter_open(hHandle, "");
+        </screen>
+      </listitem>
+
+      <listitem>
+        <para>
+          创建一个document句柄
+        </para>
+        <screen>
+          HEGGDOCUMENT hDocument = eggDocument_new();
+        </screen>
+      </listitem>
+
+      <listitem>
+        <para>
+          初始化field1，名字为title，内容为“hello egg”，类型参数为EGG_NOT_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE
+        </para>
+        <screen>
+          HEGGFIELD hField1 = eggField_new("title", "hello egg", strlen("hello egg") + 1,
+                                          EGG_NOT_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+        </screen>
+      </listitem>
+
+
+      <listitem>
+        <para>
+          初始化field2，名字为content，内容为“egg is a good docdb”，类型参数为EGG_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE
+        </para>
+        <screen>
+         HEGGFIELD hField2 = eggField_new("content", "egg is a good docdb", strlen("egg is a good docdb") + 1,
+                                          EGG_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+        </screen>
+      </listitem>
+
+      <listitem>
+        <para>
+          初始化field3，名字为time，内容为20120101，类型参数为EGG_NOT_ANALYZED | EGG_INDEX_INT32 | EGG_STORAGE
+        </para>
+        <screen>
+          <![CDATA[
+         HEGGFIELD hField3 = eggField_new("time", (void*)&time, sizeof(time),
+                                          EGG_NOT_ANALYZED | EGG_INDEX_INT32 | EGG_STORAGE);
+        ]]>
+        </screen>
+      </listitem>
+
+      <listitem>
+        <para>
+          把field加到document里
+        </para>
+        <screen>
+         eggDocument_add(hDocument, hField1);
+        </screen>
+      </listitem>
+
+      <listitem>
+        <para>
+          为该document设置权重，用于weight排序
+        </para>
+        <screen>
+         eggDocument_set_weight(hDocument, 2);
+        </screen>
+      </listitem>
+
+      <listitem>
+        <para>
+          把该document加入到indexwriter里面去
+        </para>
+        <screen>
+         eggIndexWriter_add_document(hIndexWriter, hDocument);
+        </screen>
+      </listitem>
+
+      <listitem>
+        <para>
+          销毁这篇document
+        </para>
+        <screen>
+         eggDocument_delete(hDocument);
+        </screen>
+      </listitem>
+
+      <listitem>
+        <para>
+          把indexwriter里的数据提交到磁盘
+        </para>
+        <screen>
+          eggIndexWriter_optimize(hIndexWriter);
+        </screen>
+      </listitem>
+
+      <listitem>
+        <para>
+          销毁indexwriter
+        </para>
+        <screen>
+          eggIndexWriter_close(hIndexWriter);
+        </screen>
+      </listitem>
+
+      <listitem>
+        <para>
+          销毁eggHandle
+        </para>
+        <screen>
+          eggPath_close(hHandle);
+        </screen>
+      </listitem>
+      
+      
+    </orderedlist>
+
+         
+      <para>
+        运行成功结果
+      </para>
+      <screen>
+      <![CDATA[
+      (^_^)~/Dev/cvs/ImRoBot5/egg3/egg3-trunk/doc/DocBook/sample(^_^)./eggadd 
+      Doc1： ｛title: “hello egg”， content: “egg is good docdb”， time: 20120101｜weight＝2｝   add OK 
+      Doc2： ｛title: “hello god”， content: “god is good boy”， time: 20120102｜weight＝1｝   add OK 
+      Doc3： ｛title: “hello world”， content: “world is good place”， time: 20120103｜weight＝3｝   add OK 
+      optimize success! 
+      egglib over!
+
+        ]]>
+      </screen>
+
+     
+      </sect2>
+      <sect2><title>查</title>
+	    <literallayout  id="egg_search">
+          <![CDATA[
+现在，我们已经生成了egg在/tmp里，并且已经加入了3篇doc, 分别是：
+
+          Doc1： ｛title: “hello egg”， content: “egg is good docdb”， time: 20120101｜weight＝2｝;
+
+          Doc2： ｛title: “hello god”， content: “god is good boy”， time: 20120102｜weight＝1｝;
+
+          Doc3： ｛title: “hello world”， content: “world is good place”， time: 20120103｜weight＝3｝;
+
+接着我们进行简单的查询操作来检验数据。
+        ]]>
+
+	    </literallayout>
+
+          <para>
+            下面这个例子查询的是content域内包含“is good”内容的文章（记住eggQuery的类型，分词方式等要和这个域创建时的type相对应），查到的结果按照排序，并且输出每个doc在content里的值
+          </para>
+
+          <screen>
+          <![CDATA[
+#include <egg3/Egg3.h>
+int main()
+{
+    HEGGHANDLE hHandle = eggPath_open("file:///tmp/");
+    HEGGINDEXREADER hIndexReader = eggIndexReader_open(hHandle);
+      
+    HEGGINDEXSEARCHER hIndexSearcher = eggIndexSearcher_new(hIndexReader);
+    
+    HEGGQUERY hq = eggQuery_new_string("content", "is good", strlen("is good"), ANALYZER_CWSLEX);
+    if(hq != EGG_NULL)
+    {
+        printf("query init OK! \n");
+    }
+    //填0取所有结果,非0按填的值取个数
+    HEGGTOPCOLLECTOR hTopCollector = eggTopCollector_new(0);
+    
+    eggTopCollector_set_sorttype(hTopCollector, EGG_TOPSORT_WEIGHT);
+    printf("eggTopCollector sortType is EGG_TOPSORT_WEIGHT \n");
+    
+    int ret = eggIndexSearcher_search_with_query(hIndexSearcher, hTopCollector, hq);
+    if (ret == EGG_TRUE)
+    {
+        //对最后结果进行排序
+        //EGG_TOPSORT_WEIGHT:  按document的weight排序
+        //EGG_TOPSORT_SCORE： 按查询关键字的相关度排序（打分排序）
+        //EGG_TOPSORT_NOT：  不排序
+
+ 
+        HEGGSCOREDOC lp_score_doc = eggTopCollector_top_docs(hTopCollector);
+        count_t cnt =  eggTopCollector_total_hits(hTopCollector);
+        index_t i = 0;
+        printf("have hit %u documents\n", cnt);
+
+        while (i != cnt)
+        {
+            HEGGDOCUMENT lp_eggDocument = EGG_NULL;
+           
+            eggIndexReader_get_document(hIndexReader,
+                                        lp_score_doc[i].idDoc, &lp_eggDocument);
+           
+            HEGGFIELD lp_field = eggDocument_get_field(lp_eggDocument, "content");
+            unsigned len = 0;
+            char *val = eggField_get_value(lp_field, &len);
+            printf("id : [%llu], content : [%s], weight : [%d]\n", EGGDID_DOCID(&lp_score_doc[i].idDoc), val, eggDocument_get_weight(lp_eggDocument));
+            lp_field = 0;
+            eggDocument_delete(lp_eggDocument);
+            
+            i++;
+        }
+    }
+    eggTopCollector_delete(hTopCollector);
+    eggQuery_delete(hq);
+    eggIndexSearcher_delete(hIndexSearcher);
+    eggIndexReader_close(hIndexReader);
+    eggPath_close(hHandle);
+
+    return 0;
+}
+
+        ]]>
+          </screen>
+          
+          <para>
+            代码下载           <ulink url="file:./sample/eggsearch1.c">eggsearch1.c</ulink>
+          </para>
+
+          
+          <orderedlist>
+            <title>代码流程解析</title>
+
+            <listitem>        
+              <para>
+                定位egg的路径/tmp/
+              </para>
+              <screen>
+                HEGGHANDLE hHandle = eggPath_open("file:///tmp/");
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                获取该egg的读句柄
+              </para>
+              <screen>
+                HEGGINDEXREADER hIndexReader = eggIndexReader_open(hHandle);
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                由读句柄构造一个全文检索句柄IndexSearcher
+              </para>
+              <screen>
+                HEGGINDEXSEARCHER hIndexSearcher = eggIndexSearcher_new(hIndexReader);
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                初始化一个查询条件eggQuery
+              </para>
+              <screen>
+                HEGGQUERY hq = eggQuery_new_string("content", "is good", strlen("is good"), ANALYZER_CWSLEX);
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                初始化一个查询结果集收集者TopCollector, parm1为0表示收集查询得到的所有结果，非0表示收集指定个数的结果
+              </para>
+              <screen>
+                HEGGTOPCOLLECTOR hTopCollector = eggTopCollector_new(0);
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                设置结果集的序列，当前设置为EGG_TOPSORT_WEIGHT.parm1为0表示收集查询得到的所有结果，非0表示收集指定个数的结果
+              </para>
+              <screen>
+                eggTopCollector_set_sorttype(hTopCollector, EGG_TOPSORT_WEIGHT);
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                根据查询条件进行全文检索
+              </para>
+              <screen>
+                EBOOL ret = eggIndexSearcher_search_with_query(hIndexSearcher, hTopCollector, hq);
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                获得查询结果集id数组
+              </para>
+              <screen>
+                HEGGSCOREDOC lp_score_doc = eggTopCollector_top_docs(hTopCollector);
+              </screen>
+            </listitem>        
+
+
+            <listitem>        
+              <para>
+                获得查询结果集id的有效数量
+              </para>
+              <screen>
+                count_t cnt =  eggTopCollector_total_hits(hTopCollector);
+              </screen>
+            </listitem>        
+
+
+            <listitem>        
+              <para>
+                根据指定id去获取eggDocument实体
+              </para>
+              <screen>
+                <![CDATA[
+                eggIndexReader_get_document(hIndexReader, lp_score_doc[i].idDoc, &lp_eggDocument);
+              ]]>
+                
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                获取该document里面content域的句柄
+              </para>
+              <screen>
+                HEGGFIELD lp_field = eggDocument_get_field(lp_eggDocument, "content");
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                得到field里面的值,len为值的长度
+              </para>
+              <screen>
+                <![CDATA[
+                char *val = eggField_get_value(lp_field, &len);
+              ]]>
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                销毁document
+              </para>
+              <screen>
+                eggDocument_delete(lp_eggDocument);
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                销毁topCollector
+              </para>
+              <screen>
+                eggTopCollector_delete(hTopCollector);
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                销毁query
+              </para>
+              <screen>
+                eggQuery_delete(hq);
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                销毁IndexSearcher
+              </para>
+              <screen>
+                eggIndexSearcher_delete(hIndexSearcher);
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                销毁IndexReader
+              </para>
+              <screen>
+                eggIndexReader_close(hIndexReader);
+              </screen>
+            </listitem>        
+
+            <listitem>        
+              <para>
+                销毁eggHandle
+              </para>
+              <screen>
+                eggPath_close(hHandle);
+              </screen>
+            </listitem>        
+
+          </orderedlist>
+
+      <para>
+        运行成功结果
+      </para>
+      <screen>
+      <![CDATA[
+      (^_^)~/Dev/cvs/ImRoBot5/egg3/egg3-trunk/doc/DocBook/sample(^_^)./eggsearch1 
+      query init OK! 
+      eggTopCollector sortType is EGG_TOPSORT_WEIGHT 
+      have hit 3 documents
+      id : [3], content : [world is a good place], weight : [3]
+      id : [1], content : [egg is a good docdb], weight : [2]
+      id : [2], content : [god is a good boy], weight : [1]
+      egglib over!
+
+        ]]>
+      </screen>
+
+     
+     
+      <para>
+
+
+        下面这份代码是query的组合查询(查询time域为20120102，content域为“is good”的doc)，流程和上面的例子基本一致，这里就不细说了
+
+	      <ulink url="file:./sample/eggsearch2.c">eggsearch2.c</ulink>
+      </para>
+
+
+      <para>
+        运行成功结果
+      </para>
+
+      <screen>
+      <![CDATA[
+     (^_^)~/Dev/cvs/ImRoBot5/egg3/egg3-trunk/doc/DocBook/sample(^_^)./eggsearch2
+     query init OK! 
+     eggTopCollector sortType is EGG_TOPSORT_WEIGHT 
+     have hit 1 documents
+     id : [2], time : [20120102] content : [god is a good boy], weight : [1]
+     egglib over!
+
+        ]]>
+      </screen>
+
+
+      </sect2>
+
+      <sect2><title>改</title>
+	    <para  id="egg_modify">
+          <![CDATA[
+接下来是演示修改操作，刚刚eggsearch2找到了一篇time域为20120102，content域为“is good”的doc，图中显示id为2，这时候我们要修改这篇doc的time域，改成20120104，其content的内容改为“god is a bad boy”，且在加一个url域，内容为“www.god.com”，这个域全匹配索引，数据存储。代码如下所示。
+          ]]>	      
+	    </para>
+        <screen>
+          <![CDATA[
+#include <egg3/Egg3.h>
+int main()
+{
+   HEGGHANDLE hEggHandle =  eggPath_open("file:///tmp/");
+   HEGGINDEXWRITER hIndexWriter = eggIndexWriter_open(hEggHandle,  "");
+
+   HEGGDOCUMENT hDocument = eggDocument_new();
+   HEGGFIELD hField1 = eggField_new("content", "god is a bad boy", strlen("god is a bad boy") + 1, EGG_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+   int time=20120104;
+   HEGGFIELD hField2 = eggField_new("time", (char*)&time, sizeof(time), EGG_NOT_ANALYZED | EGG_INDEX_INT32 | EGG_STORAGE);
+   HEGGFIELD hField3 = eggField_new("url", "www.god.com", strlen("www.god.com")+1, EGG_NOT_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+
+   eggDocument_add(hDocument, hField1);
+   eggDocument_add(hDocument, hField2);
+   eggDocument_add(hDocument, hField3);
+
+   EGGDID did;
+   EGGDID_DOCID(&did) = 2;
+   printf("set document to modify \n");
+   EBOOL ret = eggIndexWriter_modify_document( hIndexWriter, did, hDocument);
+   if(ret == EGG_FALSE)
+   {
+   // modify false
+       printf("modify false !\n");
+   }
+   else if(ret == EGG_TRUE)
+   {
+   // modify ture
+       printf("modify ture !\n");
+   }
+   
+   eggIndexWriter_optimize(hIndexWriter);
+   
+   eggIndexWriter_close(hIndexWriter);
+   
+   eggPath_close(hEggHandle);
+   return 0;
+}
+
+          ]]>
+        </screen>        
+
+          <para>
+            代码下载          <ulink url="file:./sample/eggmodify.c">eggmodify.c</ulink>
+          </para>
+
+
+          <orderedlist>
+            <title>代码流程解析</title>
+
+            <listitem>        
+              <para>
+                定位egg的路径/tmp/
+              </para>
+              <screen>
+                HEGGHANDLE hHandle = eggPath_open("file:///tmp/");
+              </screen>
+            </listitem>        
+
+            <listitem>
+              <para>
+                获得这个egg的写权限
+              </para>
+              <screen>
+                HEGGINDEXWRITER hIndexWriter = eggIndexWriter_open(hHandle, "");
+              </screen>
+            </listitem>
+
+            <listitem>
+              <para>
+                构造一个document的句柄，这个document里面将包含所有要修改的域
+              </para>
+              <screen>
+                HEGGDOCUMENT hDocument = eggDocument_new();
+              </screen>
+            </listitem>
+
+
+            <listitem>
+              <para>
+                修改content域，内容改为"god is a bad boy", 且配置类型不变
+              </para>
+              <screen>
+                HEGGFIELD hField1 = eggField_new("content", "god is a bad boy", strlen("god is a bad boy") + 1, EGG_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+              </screen>
+            </listitem>
+
+            <listitem>
+              <para>
+                修改time域，内容改为20120104, 且配置类型不变
+              </para>
+              <screen>
+               <![CDATA[
+                
+                HEGGFIELD hField2 = eggField_new("time", (char*)&time, sizeof(time), EGG_NOT_ANALYZED | EGG_INDEX_INT32 | EGG_STORAGE);
+               ]]>	      
+              </screen>
+            </listitem>
+
+            <listitem>
+              <para>
+                添加一个新的url域,内容改为"god is a bad boy",配置类型EGG_NOT_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE
+              </para>
+              <screen>
+                HEGGFIELD hField3 = eggField_new("url", "www.god.com", strlen("www.god.com") + 1, EGG_NOT_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+              </screen>
+            </listitem>
+
+
+            <listitem>
+              <para>
+                把这个要modify的域放到一个document里面
+              </para>
+              <screen>
+                eggDocument_add(hDocument, hField1);
+                eggDocument_add(hDocument, hField2);
+                eggDocument_add(hDocument, hField3);
+              </screen>
+            </listitem>
+
+            <listitem>
+              <para>
+                设置要修改document的id（注意：正常的流程应该是通过search操作获取到符合条件的id，然后再把id用来做modify操作，像这种直接设置id是非法操作，这里仅仅是为了表诉更加简单才省去了search操作）
+              </para>
+              <screen>
+                <![CDATA[
+                EGGDID did;
+                EGGDID_DOCID(&did) = 2;
+                ]]>
+              </screen>
+            </listitem>
+
+            <listitem>
+              <para>
+              向indexWriter里面传入要修改的docid和要修改的fields（以document为单位），eggIndexWriter_modify_document函数会把传入的新document的内容替换掉老的document的内容，如果老document没有的对应的field，则当成一个新field加入，但是不支持对老document里的field的删除操作.
+              </para>
+              <screen>
+                <![CDATA[
+                 EBOOL ret = eggIndexWriter_modify_document( hIndexWriter, did, hDocument);
+                ]]>
+              </screen>
+            </listitem>
+
+
+          <listitem>
+              <para>
+                optimize操作，提交修改操作
+              </para>
+              <screen>
+                <![CDATA[ eggIndexWriter_optimize(hIndexWriter); ]]>
+              </screen>
+            </listitem>
+
+          <listitem>
+              <para>
+                销毁IndexWriter
+              </para>
+              <screen>
+                <![CDATA[ eggIndexWriter_close(hIndexWriter); ]]>
+              </screen>
+            </listitem>
+
+          <listitem>
+              <para>
+                销毁eggHandle
+              </para>
+              <screen>
+                <![CDATA[ eggPath_close(hEggHandle); ]]>
+              </screen>
+            </listitem>
+
+
+          </orderedlist>
+
+      <para>
+        运行成功结果
+      </para>
+      <screen>
+       <![CDATA[ 
+        (^_^)~/Dev/cvs/ImRoBot5/egg3/egg3-trunk/doc/DocBook/sample(^_^)./eggmodify 
+        set document to modify 
+        modify ture !
+        egglib over!
+       ]]>
+      </screen>
+
+
+      <literallayout>
+
+
+        现在我们来验证一下是否修改成功了
+
+
+        1. 针对修改的内容，我们进行search3查询(查询要求: time域为20120104，content的内容为“is bad”，url域为“www.god.com”, 三种条件做交集操作,  code:  <ulink url="file:./sample/eggsearch3.c">eggsearch3.c</ulink>), 如图所示，查到了这篇文档
+)
+      </literallayout>
+      <screen>
+       <![CDATA[ 
+         (^_^)~/Dev/cvs/ImRoBot5/egg3/egg3-trunk/doc/DocBook/sample(^_^)./eggsearch3 
+         query init OK! 
+         eggTopCollector sortType is EGG_TOPSORT_WEIGHT 
+         have hit 1 documents
+         id : [2], time : [20120104] content : [god is a bad boy], url : [www.god.com] weight : [1]
+         egglib over!
+       ]]>
+      </screen>
+
+      <literallayout>	  
+        2. 然后再用search1和search2进行查询，如图所示，已经查不到doc2这篇文章了
+
+      search1:
+      </literallayout>	
+      <screen>
+       <![CDATA[ 
+      (^_^)~/Dev/cvs/ImRoBot5/egg3/egg3-trunk/doc/DocBook/sample(^_^)./eggsearch1
+      query init OK! 
+      eggTopCollector sortType is EGG_TOPSORT_WEIGHT 
+      have hit 2 documents
+      id : [3], content : [world is a good place], weight : [3]
+      id : [1], content : [egg is a good docdb], weight : [2]
+      egglib over!
+
+       ]]>
+      </screen>
+
+      <literallayout>
+
+      search2:
+      </literallayout>
+        <screen>
+         <![CDATA[ 
+         (^_^)~/Dev/cvs/ImRoBot5/egg3/egg3-trunk/doc/DocBook/sample(^_^)./eggsearch2
+         query init OK! 
+         eggTopCollector sortType is EGG_TOPSORT_WEIGHT 
+         egglib over!
+         ]]>
+        </screen>
+      <literallayout>
+
+      结合上面的3次查询我们可以看出，doc2已经和原来的索引脱离关系，建立了新的key－value的关系，说明modify已经成功了
+
+
+      </literallayout>
+      </sect2>
+      
+      <sect2><title>删</title>
+	    <para id="egg_del">
+          <![CDATA[
+           最后我们再把修改过的doc2删除掉
+          ]]>	      
+	    </para>
+
+        <screen>
+          <![CDATA[
+#include <egg3/Egg3.h>
+int main()
+{
+   HEGGHANDLE hEggHandle =  eggPath_open("file:///tmp/");
+   HEGGINDEXWRITER hIndexWriter = eggIndexWriter_open(hEggHandle,  "");
+   
+   EGGDID did;
+   EGGDID_DOCID(&did) = 2;
+   printf("set document to delete \n");
+   EBOOL ret = eggIndexWriter_delete_document(hIndexWriter, did);
+   if(ret == EGG_FALSE)
+   {
+   // modify false
+       printf("delete false !\n");
+   }
+   else if(ret == EGG_TRUE)
+   {
+   // modify ture
+       printf("delete ture !\n");
+   }
+   
+   eggIndexWriter_optimize(hIndexWriter);
+   
+   eggIndexWriter_close(hIndexWriter);
+   
+   eggPath_close(hEggHandle);
+   return 0;
+}
+
+          ]]>	      
+        </screen>
+        <para>
+            代码下载        <ulink url="file:./sample/eggdelete1.c">eggdelete1.c</ulink>
+        </para>
+
+
+          <orderedlist>
+            <title>代码流程解析</title>
+
+            <listitem>        
+              <para>
+                定位egg的路径/tmp/
+              </para>
+              <screen>
+                HEGGHANDLE hHandle = eggPath_open("file:///tmp/");
+              </screen>
+            </listitem>        
+
+            <listitem>
+              <para>
+                获得这个egg的写权限
+              </para>
+              <screen>
+                HEGGINDEXWRITER hIndexWriter = eggIndexWriter_open(hHandle, "");
+              </screen>
+            </listitem>
+
+            <listitem>
+              <para>
+                设置要删除document的id（注意：正常的流程应该是通过search操作获取到符合条件的id，然后再把id用来做delete操作，像这种直接设置id是非法操作，这里仅仅是为了表诉更加简单才省去了search操作）
+              </para>
+              <screen>
+                <![CDATA[
+                EGGDID did;
+                EGGDID_DOCID(&did) = 2;
+                ]]>
+              </screen>
+            </listitem>
+
+
+            <listitem>
+              <para>
+                删除did对应的document
+              </para>
+              <screen>
+                <![CDATA[
+                 EBOOL ret = eggIndexWriter_delete_document(hIndexWriter, did);
+                ]]>
+              </screen>
+            </listitem>
+          <listitem>
+              <para>
+                optimize操作，提交delete操作
+              </para>
+              <screen>
+                <![CDATA[ eggIndexWriter_optimize(hIndexWriter); ]]>
+              </screen>
+            </listitem>
+
+          <listitem>
+              <para>
+                销毁IndexWriter
+              </para>
+              <screen>
+                <![CDATA[ eggIndexWriter_close(hIndexWriter); ]]>
+              </screen>
+            </listitem>
+
+          <listitem>
+              <para>
+                销毁eggHandle
+              </para>
+              <screen>
+                <![CDATA[ eggPath_close(hEggHandle); ]]>
+              </screen>
+          </listitem>
+
+          </orderedlist>
+
+          <para>
+            运行成功结果 
+          </para>
+
+        <screen>
+         <![CDATA[ 
+         (^_^)~/Dev/cvs/ImRoBot5/egg3/egg3-trunk/doc/DocBook/sample(^_^)./eggdelete1 
+         set document to delete 
+         egglib over!
+         ]]>
+        </screen>
+
+
+      <literallayout>
+        现在再校验一下是不是删除成功了，我们再次运行search3，结果如图所示，没有查到，doc2的确是删除成功了
+      </literallayout>	
+        <screen>
+         <![CDATA[ 
+         (^_^)~/Dev/cvs/ImRoBot5/egg3/egg3-trunk/doc/DocBook/sample(^_^)./eggsearch3
+         query init OK! 
+         eggTopCollector sortType is EGG_TOPSORT_WEIGHT 
+         egglib over!
+         ]]>
+        </screen>
+
+
+      </sect2>
+      
+      <sect2><title>总结</title>
+        <para>
+      这章对egg最基础的api模块进行了全面的介绍，演示了增删改查的基本功能(例子都是有了关联的，请可以从头到尾做一遍)，通过这章基本可以了解egg的初步调用了，关于egg的高级调用请看<link linkend="egg_advancedtuto">egg进阶教程</link>。
+        </para>
+      </sect2>
+      
+    </sect1>
+    
+  </chapter>
+  

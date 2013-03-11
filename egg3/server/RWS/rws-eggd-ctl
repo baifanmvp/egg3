@@ -1,0 +1,772 @@
+#!/bin/bash
+
+export PATH=/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/sbin
+find_cmdpath()
+{
+    local cmd
+    local o_IFS
+    o_IFS=$IFS
+    IFS=:
+    for i in $PATH; do
+	cmd=$(dirname $i)/$(basename $i)/$1
+	cmd=$(expr "$cmd" : "/*\(/[^/].*\)")
+	if [ -x "$cmd" ]; then
+	    echo $cmd
+	    break
+	fi
+    done
+    IFS=$o_IFS
+}
+PIDOF=$(find_cmdpath pidof)
+rwseggd_cmd=`which rws-eggd-multi`
+clustereggd_cmd=`which cluster-eggd`
+eggd_cmd=`which eggd`
+
+me_cmd=`which rws-eggd-ctl`
+me_config=/etc/egg3/rws-eggd-ctl.cfg
+#RSYNC=`which rsync`
+rws_eggd_dump_egg_cmd=`which rws-eggd-dump-egg`
+rws_eggd_store_egg_cmd=`which rws-eggd-store-egg`
+OD=`which od`
+SED=`which sed`
+
+if_installed()
+{
+    [ x"$PIDOF" = x -o ! -x "$PIDOF" ] && { echo "please install pidof" >&2; exit 1; }
+    [ x"$rwseggd_cmd" = x -o ! -x "$rwseggd_cmd" ] && \
+        { echo "rws-eggd-multi not in PATH" >&2; exit 1; }
+    [ x"$clustereggd_cmd" = x -o ! -x "$clustereggd_cmd" ] && \
+        { echo "cluster-eggd not in PATH" >&2; exit 1; }
+    [ x"$eggd_cmd" = x -o ! -x "$eggd_cmd" ] && \
+        { echo "eggd not in PATH" >&2; exit 1; }
+
+}
+
+opt_force=0
+wait_stop() {
+    local wait_seconds=100
+
+    local PID="${1:-}"
+    [ -z "$PID" ] && { echo "" >&2 ; return ; }
+
+    if [ "$opt_force" = 1 ]; then
+        kill -9 "$PID" 2>/dev/null
+        return 0
+    fi
+    
+    local i=0
+    local retcode=0
+    while kill -0 "$PID" 2> /dev/null;  do
+        if [ "$i" = "$wait_seconds" ]; then
+	    retcode=1
+            break;
+        else
+            if [ "$i" = '0' ]; then
+                echo -n " ... waiting (max $wait_seconds seconds) "
+            else
+                echo -n "."
+            fi
+            i=$(($i+1))
+            sleep 1
+        fi
+    done
+    echo
+    return $retcode
+}
+
+rwseggd_pid()
+{
+    local pid
+    pid=`$PIDOF rws-eggd`
+    echo $pid
+}
+rwseggd_check()
+{
+    local pid
+    pid=`rwseggd_pid`
+    [ -n "$pid" ] && { echo "running rws-eggd pid[$pid]" >&2; return 0; }
+    return 1
+}
+rwseggd_start()
+{
+    local pid
+    pid=`rwseggd_pid`
+    [ -n "$pid" ] && { echo "running rws-eggd pid[$pid]" >&2; return 1; }
+
+    echo "starting rws-eggd"
+    local cmd
+#    cmd="nohup $rwseggd_cmd >/dev/null 2>/dev/null &"
+    cmd="(cd /tmp/; ulimit -c unlimited; nohup $rwseggd_cmd >/dev/null 2>/tmp/rwseggd.nohup.$RANDOM &)"
+    eval "$cmd"
+}
+rwseggd_stop()
+{
+    local pid
+
+    # clean dependent process
+    pid=`$PIDOF eggRWSPackageSaver`
+    for p in $pid; do
+	    kill -9 $p 2>/dev/null
+	    wait $p 2>/dev/null
+    done
+    pid=`$PIDOF eggRWSExportDoc`
+    for p in $pid; do
+	    kill -9 $p 2>/dev/null
+	    wait $p 2>/dev/null
+    done
+    
+    local pid
+    pid=`rwseggd_pid`
+    [ -z "$pid" ] && { echo "no rws-eggd" >&2; return 1; }
+
+    echo "stoping rws-eggd"
+    for p in $pid; do
+	    kill -15 $p 2>/dev/null
+	    wait_stop $p
+    done
+    [ $? != 0 ] && { echo "rws-eggd $pid still working" >&2; return 1; }
+
+	
+}
+rwseggd_restart()
+{
+    rwseggd_stop
+    rwseggd_start    
+}
+
+clustereggd_pid()
+{
+    local pid
+    pid=`$PIDOF cluster-eggd`
+    echo $pid
+}
+clustereggd_check()
+{
+    local pid
+    pid=`clustereggd_pid`
+    [ -n "$pid" ] && { echo "running cluster-eggd pid[$pid]" >&2; return 0; }
+    return 1
+}
+clustereggd_start()
+{
+    local pid
+    pid=`clustereggd_pid`
+    [ -n "$pid" ] && { echo "running cluster-eggd pid[$pid]" >&2; return 1; }
+    
+    echo "starting cluster-eggd"
+    local cmd
+#    cmd="nohup $clustereggd_cmd >/dev/null 2>/dev/null &"
+    cmd="(cd /tmp/; ulimit -c unlimited; nohup $clustereggd_cmd >/dev/null 2>/dev/null &)"
+    eval "$cmd"
+}
+clustereggd_stop()
+{
+    local pid
+    pid=`clustereggd_pid`
+    [ -z "$pid" ] && { echo "no cluster-eggd" >&2; return 1; }
+    
+    echo "stoping cluster-eggd"
+    kill -9 $pid 2>/dev/null
+}
+clustereggd_restart()
+{
+    clustereggd_stop    
+    clustereggd_start
+}
+
+eggd_pid()
+{
+    local pid
+    pid=`$PIDOF eggd`
+    echo $pid
+    
+}
+eggd_check()
+{
+    local pid
+    pid=`eggd_pid`
+    [ -n "$pid" ] && { echo "running eggd pid[$pid]" >&2; return 0; }
+    return 1
+}
+eggd_start()
+{
+    local pid
+    pid=`eggd_pid`
+    [ -n "$pid" ] && { echo "running eggd pid[$pid]" >&2; return 1; }
+
+    echo "starting eggd"    
+    local cmd
+
+    cmd="(cd /tmp/; ulimit -c unlimited; nohup $eggd_cmd >/tmp/eggd.log_$$ 2>/tmp/eggd.log_$$ &)"
+    eval "$cmd"
+}
+eggd_stop()
+{
+    local pid
+    pid=`eggd_pid`
+    [ -z "$pid" ] && { echo "no eggd" >&2; return 1; }
+
+    echo "stoping eggd"
+    kill -9 $pid 2>/dev/null
+    
+}
+eggd_restart()
+{
+    eggd_stop
+    eggd_start
+}
+
+all_check()
+{
+    clustereggd_check && eggd_check && rwseggd_check && return 0
+    return 1
+}
+all_start()
+{
+    clustereggd_start
+    eggd_start
+    rwseggd_start
+}
+all_stop()
+{
+    rwseggd_stop    
+    eggd_stop
+    clustereggd_stop
+}
+all_restart()
+{
+    all_stop
+    all_start
+}
+
+
+### herethere ->
+
+
+if_installed2()
+{
+    [ x"$me_cmd" = x -o ! -x "$me_cmd" ] && { echo "rws-eggd-ctl should in PATH" >&2; exit 1; }
+    [ x"$me_config" = x -o ! -r "$me_config" ] && { echo "cannot read rws-eggd-ctl.cfg" >&2; exit 1; }
+#    [ x"$RSYNC" = x -o ! -x "$RSYNC" ] && { echo "please install rsync" >&2; exit 1; }
+    [ x"$rws_eggd_dump_egg_cmd" = x -o ! -x "$rws_eggd_dump_egg_cmd" ] && \
+	{ echo "please install rws-eggd-dump-egg" >&2; exit 1; }
+    [ x"$rws_eggd_store_egg_cmd" = x -o ! -x "$rws_eggd_store_egg_cmd" ] && \
+	{ echo "please install rws-eggd-store-egg" >&2; exit 1; }
+    [ x"$OD" = x -o ! -x "$OD" ] && { echo "please install od" >&2; exit 1; }
+    [ x"$SED" = x -o ! -x "$SED" ] && { echo "please install sed" >&2; exit 1; }    
+    
+}
+
+declare -a hosts
+declare -a users
+declare -a hosts_servers
+declare -a rws_names
+declare -a rws_storage
+read_conf()
+{
+    local nhosts=0
+    local in_host=0
+    local n_rws_name=-1
+    local t i ii
+    local h s u match
+    
+    while read -a c; do
+        if expr "${c[0]}" : '^[[]' >/dev/null 2>/dev/null; then
+            
+            let in_host++
+            
+            let n_rws_name++
+            rws_names[$n_rws_name]=$(expr "${c[0]}" : "[[]\([^]]*\)]")
+            
+        elif [ "$in_host" = 0 ]; then
+            [ x"${c[0]}" = x ] && continue
+
+            users[$nhosts]="${c[0]}"
+            
+            hosts[$nhosts]="${c[1]}"
+            
+            t=
+            i=2
+            while [ "$i" -lt "${#c[*]}" ]; do
+                t="$t ${c[$i]}"
+                let i++
+            done
+            hosts_servers[$nhosts]=$t
+            
+            let nhosts++
+
+        elif [ "$n_rws_name" -ge 0 ]; then
+            [ x"${c[0]}" = x ] && continue
+
+            t=${rws_storage[$n_rws_name]}
+            rws_storage[$n_rws_name]="$t;${c[*]}"
+            
+        fi
+
+    done <$me_config
+
+    
+    # make rws host and rws server last
+    i=0
+    while [ "$i" -lt ${#hosts_servers[*]} ]; do
+        t=${hosts_servers[$i]}
+        for s in $t; do
+            if [ "$s" = 'rws' -o "$s" = 'all' ]; then
+                match=1
+                # make rws server last
+                hosts_servers[$i]=$(echo $t | $SED -e '/rws$/ q; s/\(.*\) *rws *\(.*\)/\1\2 rws/')
+                break
+            fi
+        done
+        
+        # make rws host last
+        if [ x$match = x1 ]; then
+            h=${hosts[$i]}
+            s=${hosts_servers[$i]}
+            u=${users[$i]}
+            let ii=${#hosts[*]}-1
+            hosts[$i]=${hosts[$ii]}
+            hosts_servers[$i]=${hosts_servers[$ii]}
+            users[$i]=${users[$ii]}
+            hosts[$ii]=$h
+            hosts_servers[$ii]=$s
+            users[$ii]=$u
+            break
+        fi
+        
+        let i++
+    done
+
+}
+
+do_ssh_cmd()
+{
+    local host
+    host=$1
+    shift
+    
+    ssh $(get_sshid $host) "$@"
+}
+
+get_sshid()
+{
+    if [ x"$1" = x ]; then
+        return
+    fi
+    
+    local i
+    i=0
+    while [ "$i" -lt ${#hosts[*]} ]; do
+        if [ "${hosts[$i]}" = "$1" ]; then
+            echo ${users[$i]}@$1
+            return
+        fi
+
+        let i++
+    done
+}
+
+stop_allhost_server()
+{
+    local i
+    i=0
+    while [ "$i" -lt ${#hosts[*]} ]; do
+        for server in ${hosts_servers[$i]}; do
+            echo do_ssh_cmd ${hosts[$i]} "$me_cmd --force $server stop"
+            do_ssh_cmd ${hosts[$i]} "$me_cmd --force $server stop"
+        done
+        let i++
+    done
+}
+start_allhost_server()
+{
+    local i
+    i=0
+    while [ $i -lt ${#hosts[*]} ]; do
+        for server in ${hosts_servers[$i]}; do
+            echo do_ssh_cmd ${hosts[$i]} "$me_cmd $server start"
+            do_ssh_cmd ${hosts[$i]} "$me_cmd $server start"
+        done
+        let i++
+    done
+}
+check_allhost_server()
+{
+    local i
+    i=0
+    while [ $i -lt ${#hosts[*]} ]; do
+        for server in ${hosts_servers[$i]}; do
+            echo do_ssh_cmd ${hosts[$i]} "$me_cmd $server check"
+            do_ssh_cmd ${hosts[$i]} "$me_cmd $server check" || return 1
+        done
+        let i++
+    done
+}
+
+get_checkvalue()
+{
+    local ret result
+
+    echo get_checkvalue $1 "$OD -N8 -tu8 $2/egg.dat.idt" "$ret" >&2
+
+    result=$(do_ssh_cmd $1 "$OD -N8 -tu8 $2/egg.dat.idt" | head -1)
+    if [ x$result = x ]; then
+        echo 0
+        return
+    fi
+    ret=$(expr "$result" : "[^ ]*[ ]*\(.*\)")
+    
+    echo get_checkvalue $1 "$OD -N8 -tu8 $2/egg.dat.idt" "$ret" >&2
+    
+    echo $ret
+}
+
+sync_egg()
+{
+    local src_ip src_dir dest_ip dest_dir
+    local master_ip i
+
+    let i=${#hosts[*]}-1
+    master_ip=${hosts[$i]}
+    
+    src_ip=$1
+    src_dir=$2
+    dest_ip=$3
+    dest_dir=$4
+
+    if ! expr "$src_ip" : "[^ ]" >/dev/null 2>/dev/null; then
+	    echo "sync_egg [$src_ip] [$src_dir] [$dest_ip] [$dest_dir]"
+	    exit 1
+    fi
+    if ! expr "$dest_ip" : "[^ ]" >/dev/null 2>/dev/null; then
+	    echo "sync_egg [$src_ip] [$src_dir] [$dest_ip] [$dest_dir]"
+	    exit 1
+    fi
+    if ! expr "$src_dir" : "/[^ ]" >/dev/null 2>/dev/null; then
+	    echo "sync_egg [$src_ip] [$src_dir] [$dest_ip] [$dest_dir]"
+	    exit 1
+    fi
+    if ! expr "$dest_dir" : "/[^ ]" >/dev/null 2>/dev/null; then
+	    echo "sync_egg [$src_ip] [$src_dir] [$dest_ip] [$dest_dir]"
+	    exit 1
+    fi
+
+    
+    echo "sync_egg [$src_ip] [$src_dir] [$dest_ip] [$dest_dir]"
+    
+    if [ "$src_ip" = "$master_ip" ] ;then
+        
+        if ! ( set -e; $rws_eggd_dump_egg_cmd $src_dir | do_ssh_cmd $dest_ip $rws_eggd_store_egg_cmd $dest_dir ); then
+            echo "failed: $rws_eggd_dump_egg_cmd $src_dir | do_ssh_cmd $dest_ip $rws_eggd_store_egg_cmd $dest_dir"
+            exit 1
+        fi
+
+    elif [ "$dest_ip" = "$master_ip" ] ;then
+
+        if ! ( set -e; do_ssh_cmd $src_ip $rws_eggd_dump_egg_cmd $src_dir | $rws_eggd_store_egg_cmd $dest_dir ); then
+            echo "failed: do_ssh_cmd $src_ip $rws_eggd_dump_egg_cmd $src_dir | $rws_eggd_store_egg_cmd $dest_dir"
+            exit 1
+        fi
+        
+    else
+        
+        if ! ( set -e; do_ssh_cmd $src_ip $rws_eggd_dump_egg_cmd $src_dir | do_ssh_cmd $dest_ip $rws_eggd_store_egg_cmd $dest_dir ); then
+            echo "failed: do_ssh_cmd $src_ip $rws_eggd_dump_egg_cmd $src_dir | do_ssh_cmd $dest_ip $rws_eggd_store_egg_cmd $dest_dir"
+            exit 1
+        fi
+        
+    fi
+
+    ###echo $RSYNC -az --delete -e ssh $src $dest
+}
+
+make_consistency()
+{
+    local i_rws
+    local i ii j k i_src
+    local h d h_src d_src
+    local max_checkvalue
+    local storage
+    local checkvalue
+    local all_eq
+
+    local -a rws
+
+    rws=()
+    ii=0
+    for i in $@; do
+        rws[$ii]=$i
+        let ii++
+    done
+
+    if [ $ii -le 1 ]; then
+        return
+    fi
+
+    i=0
+    max_checkvalue=-1
+    i_src=-1
+    h_src=
+    d_src=
+    all_eq=1
+    while [ "$i" -lt ${#rws[*]} ]; do
+        let i+=2
+
+        if [ "$max_checkvalue" -eq -1 ]; then
+            max_checkvalue=${rws[$i]}
+            let i_src=i-2
+            let ii=i-1
+            h_src=${rws[$i_src]}
+            d_src=${rws[$ii]}
+        elif [ "$max_checkvalue" -lt "${rws[$i]}" ]; then
+            max_checkvalue=${rws[$i]}
+            let i_src=i-2
+            let ii=i-1
+            h_src=${rws[$i_src]}
+            d_src=${rws[$ii]}
+            all_eq=0
+        elif [ "$max_checkvalue" != "${rws[$i]}" ]; then
+            all_eq=0
+        fi
+
+        let i++
+    done
+
+
+
+    if [ "$all_eq" = 0 ]; then
+	
+	i=0
+	while [ "$i" -lt ${#rws[*]} ]; do
+            let j=i+2
+            if [ "${rws[$i]}" = "$h_src" -o "${rws[$j]}" = "$max_checkvalue" ]; then
+		let i+=3
+		continue
+            fi
+            
+            h=${rws[$i]}
+            let i++
+            d=${rws[$i]}
+            let i++
+                # checkvalue
+            let i++
+
+            sync_egg $h_src $d_src $h $d
+	done
+
+    fi
+    
+}
+
+check_hosts_consistency()
+{
+    local o_IFS
+    local i_rws
+    local i ii
+    local h d h_src d_src
+    local max_checkvalue
+    local storage
+    local checkvalue
+    local all_eq    
+    local -a rws
+
+    i_rws=0
+    while [ "$i_rws" -lt ${#rws_names[*]} ]; do
+        storage=${rws_storage[$i_rws]}
+        rws=()
+        i=0
+        o_IFS=$IFS
+        IFS=";"
+        for hd in $storage; do
+            [ x"$hd" = x ] && continue
+            h=$(expr "$hd" : "\([^ ]*\) [^ ]*")
+            d=$(expr "$hd" : "[^ ]* \([^ ]*\)")
+
+            rws[$i]=$h
+            let i++
+            rws[$i]=$d
+            let i++
+            checkvalue=$(get_checkvalue $h $d)
+            
+            rws[$i]=$checkvalue
+            let i++
+        done
+        IFS=$o_IFS
+
+        make_consistency "${rws[@]}"
+        
+        let i_rws++
+    done
+        
+        
+}
+
+herethere_check()
+{
+    check_allhost_server
+}
+herethere_start()
+{
+    if ! check_allhost_server; then
+        stop_allhost_server
+        check_hosts_consistency
+        start_allhost_server    
+    fi
+}
+herethere_stop()
+{
+    stop_allhost_server
+    check_hosts_consistency
+}
+herethere_restart()
+{
+    stop_allhost_server
+    check_hosts_consistency
+    start_allhost_server    
+}
+
+
+### herethere <-
+
+
+usage()
+{
+    echo "Usage: rws-eggd-ctl [--force] rws|info|svc|all|hth check|start|stop|restart"
+}
+
+# remove options ->
+declare -a args    
+i=0
+for a in $@; do
+    case $a in
+        --force)
+            opt_force=1
+            ;;
+        -*)
+            
+            ;;
+        *)
+            args[$i]=$a
+            let i++
+            ;;
+    esac
+done
+[ x${#args[@]} != x0 ] && set ${args[@]}
+unset args i
+# remove options <-
+
+[ $# -lt 2 ] && { usage; exit 1; }
+if_installed
+
+case $1 in
+    rws)
+	
+	case $2 in
+	    check)
+		rwseggd_check
+		;;
+	    start)
+		rwseggd_start
+		;;
+	    stop)
+		rwseggd_stop
+		;;
+	    restart)
+		rwseggd_restart
+		;;
+	    *)
+		usage
+		;;
+	esac
+	
+	;;
+    info)
+
+	case $2 in
+	    check)
+		clustereggd_check
+		;;
+	    start)
+		clustereggd_start
+		;;
+	    stop)
+		clustereggd_stop
+		;;
+	    restart)
+		clustereggd_restart
+		;;
+	    *)
+		usage
+		;;
+	esac
+
+	;;
+    svc)
+
+	case $2 in
+	    check)
+		eggd_check
+		;;
+	    start)
+		eggd_start
+		;;
+	    stop)
+		eggd_stop
+		;;
+	    restart)
+		eggd_restart
+		;;
+	    *)
+		usage
+		;;
+	esac
+
+	;;
+    all)
+
+	case $2 in
+	    check)
+		all_check
+		;;
+	    start)
+		all_start
+		;;
+	    stop)
+		all_stop
+		;;
+	    restart)
+		all_restart
+		;;
+	    *)
+		usage
+		;;
+	esac
+
+	;;
+    hth)
+
+    read_conf
+    if_installed2
+	case $2 in
+	    check)
+		herethere_check
+		;;
+	    start)
+		herethere_start
+		;;
+	    stop)
+		herethere_stop
+		;;
+	    restart)
+		herethere_restart
+		;;
+	    *)
+		usage
+		;;
+	esac
+        
+    ;;
+    *)
+	usage
+	;;
+esac

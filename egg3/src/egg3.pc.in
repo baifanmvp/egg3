@@ -1,0 +1,14 @@
+prefix=@PREFIX@
+exec_prefix=@EXEC_PREFIX@
+libdir=@LIBDIR@
+includedir=@INCLUDEDIR@
+
+egg_version=egg3
+eggdir=${egg_version}
+
+Name: eggLib
+Description: C Utility Library
+Version: ${egg_version}
+Requires.private: glib-2.0 >= 2.16.0
+Libs:  -L${libdir}/ -legg3
+Cflags:  -I${includedir}/${eggdir}/

@@ -1,0 +1,24 @@
+#ifndef _EGG_ERROR_H_
+#define _EGG_ERROR_H_
+
+#define ERR_OBJECT_INVALID        0xFFFF
+
+#define ERR_INDEX_OBJECT_INVALID  0x0002
+#define ERR_INDEX_LOW_OVERFLOW    0x0003
+#define ERR_INDEX_NO_ROOT         0x0004
+
+#define ERR_CLUSTER_OVERFLOW      0x0002
+#define ERR_CLUSTER_LESS_MEMORY   0x0003
+#define ERR_CLUSTER_READ_INVALID  0x0004
+#define ERR_CLUSTER_WRITE_INVALID 0x0005
+
+
+#define ERR_COLLECT_LESS_MEMORY   0x0002
+
+
+/* EBOOL values */
+#define EGG_ERR_TRYAGAIN        0xf001
+
+
+#endif //_EGG_ERROR_H_
+

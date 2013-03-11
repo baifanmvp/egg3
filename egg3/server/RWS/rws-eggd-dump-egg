@@ -1,0 +1,53 @@
+#!/bin/bash
+
+
+
+
+# make sure stdout is compressed data
+
+
+export PATH=/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/sbin
+BZIP2=`which bzip2`
+CPIO=`which cpio`
+
+if ! [ -x "$BZIP2" ]; then
+    echo >&2 need bzip2
+    exit 1
+fi
+
+if ! [ -x "$CPIO" ]; then
+    echo >&2 need cpio
+    exit 1
+fi
+
+
+usage()
+{
+    echo >&2 rws-eggd-dump-egg /absolute-egg-dir/
+    exit 1
+}
+[ $# -lt 1 ] && usage
+
+EGG_DIR=$1
+
+if ! [ -d "$EGG_DIR" -a -x "$EGG_DIR" ]; then
+    echo >&2 $EGG_DIR not directory or cannot access
+    exit 1
+fi
+
+EGGRECOVERYLOGCLEAN=`which eggRecoveryLogClean`
+if ! [ -x "$EGGRECOVERYLOGCLEAN" ]; then
+    echo >&2 neeed eggRecoveryLogClean
+    exit 1
+fi
+
+
+if ! $EGGRECOVERYLOGCLEAN $EGG_DIR >&2 ; then
+    echo >&2 $EGGRECOVERYLOGCLEAN $EGG_DIR fail
+    exit 2
+fi
+
+cd $EGG_DIR
+
+#echo egg.[^d]* egg.dat egg.dat.idt | xargs -n1 | $CPIO --quiet -H ustar -o | $BZIP2 -c
+echo egg.[^d]* egg.dat egg.dat.idt | xargs -n1 | $CPIO --quiet -H ustar -o

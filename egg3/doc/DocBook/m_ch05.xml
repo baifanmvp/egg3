@@ -1,0 +1,1026 @@
+  <chapter>
+    <title>egg的内幕 </title>
+    <para>
+    </para>
+    <sect1><title>文件结构</title>
+      <itemizedlist mark='opencircle'>
+	<listitem>
+	  <para>
+	    egg.dat：存储序列化后的document实体
+	  </para>
+	</listitem>
+	<listitem>
+	  <para>
+	    egg.dat.idt：管理document的id
+	  </para>
+	</listitem>
+	<listitem>
+	  <para>
+	    egg.fdd：存放域信息，管理和配置各个域下的倒排表索引（indexView）
+	  </para>
+	</listitem>
+	<listitem>
+	  <para>
+	    egg.idd：所有的倒排表
+	  </para>
+	</listitem>
+	<listitem>
+	  <para>
+	    egg.idx：所有的倒排表索引
+	  </para>
+	</listitem>
+	<listitem>
+	  <para>
+	    egg.rlog：日志记录
+	  </para>
+	</listitem>
+	<listitem>
+	  <para>
+	    egg.rlog.info：日志记录管理信息
+	  </para>
+	</listitem>
+	<listitem>
+	  <para>
+	    *.fa： 存放每个文件废弃数据信息，产生废弃数据时建立		    
+	  </para>
+	</listitem>
+      </itemizedlist>
+      
+    </sect1>
+    
+    <sect1><title>全文检索流程</title>
+      <sect2><title>添加</title>
+      <para>
+	<graphic fileref="resource/egg-add-process.png"/>
+	<orderedlist numeration="lowerroman">
+	  <listitem>
+	    <para> 假设一份网页有3个部分——title(标题)，content(正文)，url(网址)</para>
+	  </listitem>
+	  <listitem>
+	    <para>这份网页当成一个doument，其3个部分就是该document的3个域</para>
+	  </listitem>
+	  <listitem>
+	    <para>egg会将这份document交由eggDocView模块(管理document)进行存储，并为其分配document_id</para>
+	  </listitem>
+	  <listitem>
+	    <para>语言解析器会对document各域的内容进行分词（key）</para>
+	  </listitem>
+	  <listitem>
+	    <para>所有key的会和document_id组成key-id列表的键值对形式放于(eggIndexCache)缓冲区中</para>
+	  </listitem>
+	  <listitem>
+	    <para>待做optimize（提交）操作是，所有的key将写入index(倒排索引表)，id列表将写入idView（id倒排表）中，并且建立关联</para>
+	  </listitem>
+	</orderedlist>
+      </para>
+      </sect2>
+      <sect2><title>查询</title>
+	<para>
+	<graphic fileref="resource/egg-query-process.png"/>
+	<orderedlist numeration="lowerroman">
+	  <listitem>
+	    <para>假定现在有如下查询要求——查找的document是content里同时key1，key2和key3;
+	      或者是title里同时出现了key1和key2；或者是url里出现了key3
+	    </para>
+	  </listitem>
+	  <listitem>
+	    <para>将其查询要求按照query模块api的要求填入，将生成一棵与或逻辑关系的语法树；</para>
+	  </listitem>
+	  <listitem>
+	    <para>该语法树会被相应的模块所解析，并且到各域所对应的倒排索引表里查找到所需关键字所关联的id列表</para>
+	  </listitem>
+	  <listitem>
+	    <para>各关键字的id列表会按照与或逻辑关系进行合并，并且可按照多种打分方式进行打分排序</para>
+	  </listitem>
+	  <listitem>
+	    <para>最后生成一份新的符合查询要求的document_id列表，可通过该id列</para>
+	  </listitem>
+	</orderedlist>
+	</para>
+      </sect2>
+    </sect1>
+    
+    <sect1><title>语义分词</title>
+      <para id="egg_analy">
+        语义分词旨在对句子的切分以及对切分后的词语进行词性标注。cws分词切割采用一般随机过程与最短路径算法相结合的思路，在词法标注方面采用隐马尔可夫模型，利用其Viterbi算法求出最优词性标注方案，并在此基础上设计多层隐马尔可夫模型进行命名实体的识别，并引入CRF条件随机场增强对中文人名识别的效果。      
+      </para>
+      <sect2><title>常用分词器的介绍</title>
+      <screen>
+        <![CDATA[
+
+--------------------------------------------------------------------------------
+
+There are some word segmentation method provide by scholar.
+And you should note that punctuation would not be result.
+
+
+1. Cn: Single-word word (单字分词)
+        Example: "这是测试test句子。"
+        Result: "这/是/测/试/test/句/子"
+
+2. Cy: According to the symbol of the word (符号分词)
+        Example: "这是测试test句子。"
+        Result: "这是测试/test/句子"
+
+3. Cws: Chinese word segmentation (中文分词)
+        Example: "这是测试test句子。"
+        Result: "这/是/测试/test/句子"
+
+4. C2: Tow or more word segmentation (n元分词) (You can change "for circle" n in ImC2LexAnalyzer.c:155)
+        Example: "这是测试test句子。"
+        Result: "       这
+                                这是
+                                这是测
+                                这是测试
+                                这是测试t
+                                这是测试te
+                                这是测试tes
+                                这是测试test
+                                这是测试test句
+                                这是测试test句子
+                                是
+                                是测
+                                是测试
+                                是测试t
+                                是测试te
+                                是测试tes
+                                是测试test
+                                是测试test句
+                                是测试test句子
+                                测
+                                测试
+                                测试t
+                                测试te
+                                测试tes
+                                测试test
+                                测试test句
+                                测试test句子
+                                试
+                                试t
+                                试te
+                                试tes
+                                试test
+                                试test句
+                                试test句子
+                                t
+                                te
+                                tes
+                                test
+                                test句
+                                test句子
+                                e
+                                es
+                                est
+                                est句
+                                est句子
+                                s
+                                st
+                                st句
+                                st句子
+                                t
+                                t句
+                                t句子
+                                句
+                                句子
+                                子", God, There are so many word, are they?
+
+5. Cx: Tow or more word segmentation (首字n元分词) (You can change "for circle" n in ImCxLexAnalyzer.c:155)
+        Example: "这是测试test句子。"
+        Result: "       这
+                                这是
+                                这是测
+                                这是测试
+                                这是测试t
+                                这是测试te
+                                这是测试tes
+                                这是测试test
+                                这是测试test句
+                                这是测试test句子", God, There are so many word, are they?
+
+6. Cwn: Chinese word segmentation (中文分词) and Single-word word (单字分词)
+        Example: "这是测试test句子。"
+        Result: "这/是/测/测试/试/test/句/句子/子"
+
+7. Cb: Blank word segmentation (空格分词)
+        Example: "这是 测试te st句子。"
+        Result: "这是/测试te/st句子。/"
+
+8. En: English word segmentation (英文分词)
+        Example: "This are some tests."
+        Result: "this/are/some/test/."
+
+--------------------------------------------------------------------------------
+
+        ]]>
+      </screen>
+      </sect2>
+
+      <sect2><title>cws官方文档</title>
+
+        <para>
+          这里有一份完整的 <ulink url="file:./resource/cws.pdf">cws官方介绍</ulink>
+        </para>
+      </sect2>
+
+    </sect1>
+    
+    <sect1 id="eggquery_detail"><title>query语法树介绍</title>
+      <sect2><title>简介</title>
+      <para>
+	文章id形成id列表。
+	根据(fieldName, keyword)查得id列表(HEGGIDNODE)。
+	根据fieldName得到相应的B+树的索引信息。再用keyword在B+树上查找，得到id列表。
+	一个基本查询得到一个id列表。 复合查询利用eggQuery_and及eggQuery_or进行逻辑操作。	
+      </para>
+      </sect2>
+      <sect2><title>接口</title>
+	<para>复合查询利用如下逻辑操作：
+	  <screen><![CDATA[
+      HEGGQUERY eggQuery_and(HEGGQUERY Express1, HEGGQUERY Express2);
+      HEGGQUERY eggQuery_or(HEGGQUERY Express1, HEGGQUERY Express2);
+          ]]></screen>
+	  </para>
+	<para>keyword为字符串，由analyzerName进行分词(NULL则不分词），分词后进行eggQuery_and。
+	  当keyword以"$$$"开始时，有特殊意义。
+	  <screen><![CDATA[	
+      HEGGQUERY eggQuery_new_string(const char* fieldName, 
+				    const echar* keyword, size16_t keywordSz, 
+				    char *analyzerName);
+          ]]></screen>
+	  例如
+	  <screen>
+              <![CDATA[
+           eggQuery_new_string(...,"a b c", 3, "...")相当于
+                       eggQuery_add( eggQuery_add(eggQuery_new_string(...,"a", 1, NULL),
+                                                  eggQuery_new_string(...,"b",1, NULL))
+                                     eggQuery_new_string(...,"c",1, NULL))
+           ]]></screen>
+          但是
+          <screen>
+              <![CDATA[              
+           eggQuery_new_string(...,"$$$a b c", 3, "...")相当于
+                       eggQuery_or( eggQuery_or(eggQuery_new_string(...,"a", 1, NULL),
+                                                  eggQuery_new_string(...,"b",1, NULL))
+                                     eggQuery_new_string(...,"c",1, NULL))
+
+           ]]></screen>
+
+	</para>
+	<para>keyword为字符串，由annalyzerName分词器分词后，eggQuery_and各词,得到id列表.过滤id，
+	  留下这样的文章id, 这些词处于这样文章的一个短语里。
+	  具体实现是对短语的词进行打分，对整体出现时排名靠前。
+	  <screen><![CDATA[
+      HEGGQUERY eggQuery_new_phrase(const char* fieldName, 
+				    const echar* keyword, size16_t keywordSz, 
+				    char *analyzerName);
+          ]]></screen>
+	</para>
+	<para>
+	  keyword为字符串，由analyzerName进行分词(NULL则不分词）。
+	  当keyword中含"时, 对keyword的双引号之间的字符串进行eggQuery_new_phrase查询，
+	  其他作为eggQuery_new_string查询，最后eggQuery_and。
+	  <screen><![CDATA[
+      HEGGQUERY eggQuery_new_sentence(const char* fieldName, 
+				      const echar* keyword, size16_t keywordSz,
+				      char *analyzerName);
+          ]]></screen>
+	  例如
+           <screen>
+              <![CDATA[            
+         eggQuery_new_sentence(...,"abcd\"efg\"hij",...)等同于
+         eggQuery_add( eggQuery_and(eggQuery_new_string(...,"abcd",...),  eggQuery_new_phrase(...,"efg",...)),
+                       eggQuery_new_string(...,"abcd",...))
+         ]]></screen>
+
+	</para>
+	<para>keyword 为数字。
+	  <screen><![CDATA[
+      HEGGQUERY eggQuery_new_int64(const char* fieldName, int64_t number1);
+          ]]></screen>
+	</para>
+	<para>在B+树上查找number1至number2之间的id列表。含 number1和number2
+	  <screen><![CDATA[
+      HEGGQUERY eggQuery_new_int64range(const char* fieldName, 
+					int64_t number1, int64_t number2);
+          ]]></screen>
+	</para>
+	<para>在B+树上查找number1至number2之间的id列表。含 number1和但不含number2
+	  <screen><![CDATA[
+      HEGGQUERY eggQuery_new_int64range_en(const char* fieldName, 
+					int64_t number1, int64_t number2);
+          ]]></screen>
+	</para>
+	<para>在B+树上查找全部数字的id列表。
+	  <screen><![CDATA[
+      HEGGQUERY eggQuery_new_int64range_all(const char* fieldName, 
+					int64_t number1, int64_t number2);
+          ]]></screen>
+	</para>
+      </sect2>
+    
+	<sect2><title>实现</title>
+	<para>由于Query要实现eggQuery_or及eggQuery_and逻辑操作，eggQuery的数据结构为二叉树。
+	  将Query转化为array。实现为二叉树前序遍历。以下为内部接口：
+	  <screen><![CDATA[
+	char * eggQuery_serialise(HEGGQUERY hQuery, int *sz);
+	HEGGQUERY eggQuery_unserialise(char *query, int sz);
+          ]]></screen>
+	</para>
+      </sect2>
+    </sect1>
+
+    
+    <sect1><title>B＋树倒排索引</title>
+      <sect2><title>概述</title>
+	<para>
+	  关键字索引模块（indexView）是一套基于B＋树的索引机制，通过key－value的流程完成整个查找过程。
+	</para>
+	<para>
+	  由于该模块采用的是以B＋树为存储结构的设计思想，因此继承其优良的特性, 可支持海量的数据容量，有着良好的数据延展性，
+	  而且key支持int32（int）， int64（long long） ，double和string四种数据类型，value为非结构化的数据类型，
+	  使得该模块用途更加广泛，更加范型化。
+	</para>
+	<para>
+	  B＋树是一种平衡的多路查找树，tree的结构特性使其插入操作比一般的线性数组效率要高的多，
+	  而且B＋树自动平衡的特质使其面对超大量的数据时依然能保持着高效的查找效率（仅稍逊于二分查找）。
+	</para>
+      </sect2>
+      <sect2><title>功能</title>
+	<para>
+	  负责存储和索引文档中的key和该文档id之间的关系，建立一个key(doc中的关键字)－>value(包含该关键字的doc的id列表集)的倒排索引关系表(B+树)。
+	</para>
+      </sect2>
+      <sect2><title>类型结构</title>
+	<para>
+	  多个key-value(EGGINDEXRECORD)组成了B+树上一个节点(EGGINDEXNODEVIEW),多个节点构成该倒排索引表(EGGINDEXVIEW)。
+	</para>
+	<para>
+	  EGGINDEXRECORD为index上的最小记录单元(b+树上的一个record)，用来存储key-value的键值对，
+	  其中key可以支持int，long long，double和string类型,value是无结构化的数据类型。
+	  <screen><![CDATA[
+	//EGGINDEXRECORD 记录模块(tree的每一个key-value)
+	typedef struct eggIndexRecord  EGGINDEXRECORD;
+	typedef struct eggIndexRecord* HEGGINDEXRECORD;
+
+	struct eggIndexRecord
+	{
+	   offset64_t childOff;
+	   offset64_t hostOff;
+
+	   size16_t kSz;
+	   size16_t vSz;
+	};
+          ]]></screen>
+	</para>
+	<para>
+	  EGGINDEXNODEVIEW是一个record集，默认数量为32个，该模块相当于b＋树上的一个node，
+	  负责该node上的record（key－value键值对）的插入和删除，还有自身的分裂（split），
+	  维护着自身层上的record平衡，也直接影响了整个b＋树上的平衡。
+	  <screen><![CDATA[
+	//EGGINDEXNODEVIEW 节点模块(tree的每一层)
+	typedef struct eggIndexNodeView EGGINDEXNODEVIEW;
+	typedef struct eggIndexNodeView* HEGGINDEXNODEVIEW;
+
+	struct eggIndexNodeView
+	{
+	   offset64_t nodeOff;
+	   HEGGINDEXNODEINFO reInfo;
+	   HEGGINDEXNODE hNode;
+	};          
+	  ]]></screen>
+	</para>
+	<para>
+	  操控着index上的所有node，使得整个b＋树保持着平衡的状态，有读写文件的权限，负责整个index上可持久化数据的存储。
+	  <screen><![CDATA[
+	//EGGINDEXVIEW 主模块
+	typedef struct eggIndexView EGGINDEXVIEW;
+	typedef struct eggIndexView* HEGGINDEXVIEW;
+
+	struct eggIndexView
+	{
+	   HVIEWSTREAM hViewStream;
+	   HEGGINDEXINFO hInfo;
+	   HEGGFIELDVIEW hFieldView;
+	};
+	  ]]></screen>
+	</para>
+	</sect2>
+	<sect2><title>对外接口</title>
+	  <para>
+	  <screen><![CDATA[
+	//创建IndexView对象
+	HEGGINDEXVIEW eggIndexView_new(HEGGFILE hEggFile, HEGGINDEXINFO hInfo);
+	  ]]></screen>
+	  创建IndexView对象, hEggFile为b+可持久化数据的文件储存句柄,
+	  hInfo为该棵树的一些配置信息(key类型，record的大小，node上record最大数量等等)和rootNode(根节点)信息。
+	  </para>
+	  <para>
+	  <screen><![CDATA[
+	//销毁IndexView对象
+	EBOOL eggIndexView_delete(HEGGINDEXVIEW hEggIndexView);
+	  ]]></screen>
+	  销毁IndexView对象
+	  </para>
+	  <para>
+	  <screen><![CDATA[
+	//以key－value的形式插入Index
+	EBOOL eggIndexView_insert(HEGGINDEXVIEW hEggIndexView, void* key, size32_t kSz, void* val, size32_t vSz);
+	  ]]></screen>
+	  把key－value键值对插入Index中
+	  </para>
+	  <para>
+	  <screen><![CDATA[
+	//通过key获取对应的record（key－value）
+	HEGGINDEXRECORD eggIndexView_fetch(HEGGINDEXVIEW hEggIndexView, void* key, size32_t kSz);
+	  ]]></screen>
+	  通过key获取对应的record
+	  </para>
+	  <para>
+	  <screen><![CDATA[
+	//通过key定位对应的record（key－value）在index上的位置
+	PUBLIC HEGGINDEXRECORD eggIndexView_locate(HEGGINDEXVIEW hEggIndexView, void* key, size16_t kSz, offset64_t* pNdPos, index_t* pRdIdx);
+	  ]]></screen>
+	  通过key定位对应的record（key－value）在index上的位置, pNdPos为所在该key所在的node的文件位置, pRdIdx为在node上的线性数组脚标
+	  </para>
+	</sect2>
+	<sect2><title>EGGINDEXVIEW结构类图</title>
+	  <para>
+	    <graphic fileref="resource/egg-indexView-class.png"/>
+	    hViewStream : 该index所在的filestream（文件流）
+	    hInfo : b+树根信息
+	    hFieldView : B＋树域信息
+	  </para>
+	</sect2>
+	<sect2><title>EGGINDEXVIEW B+tree示意图</title>
+	  <para>
+	    <graphic fileref="resource/b+.png"/>
+	    该图是一棵典型的b＋树（key为整数值，每一个node里面的record阀值是3个，真实际程序里的是32个record），
+	    record和node已经在上面标记清楚了，最下层的叶子节点是个按特定顺序排好的list表，这是B＋树和其他平衡B树不同的地方，
+	    这样可以把这棵树上的record按照树指定的顺序依次导出，对树上key的信息统计和以key作为范围的查询提供了极大的便利。
+	  </para>
+	</sect2>
+	<sect2><title>流程</title>
+	  <para>
+	    <graphic fileref="resource/indexviewprocess.png"/>
+	    一篇document， 通过analysis（分析）会得到若干关键字（key），document的id和其所以的key将建立多个倒排索引的关系，
+	    该document id会被加入各个key所对应的倒排索引表（非indexView模块）中，
+	    而每一个key和其倒排索引表的表头将组成一个record， 加入到IndexView中，完成构建索引过程。
+	  </para>
+	</sect2>
+	
+    </sect1>
+
+    
+    <sect1><title>事务处理</title>
+      <sect2><title>介绍</title>
+	<para>
+	  为防止外部调用程序意外终止导致数据损坏，egg库使用日志进行数据写入的保护。
+	  这里的意外终止，包括用户kill程序，用户程序自身断错误等。
+	  如果程序非正常退出时， 正好在调用egg库的关键函数，这时将有可能导致数据的损坏。
+	  例如程序在B+树的分裂时，分裂未完成程序就非正常退出，这时的索引结构是不完整的，
+	  下次访问索引时，将导致数据查不到或是访问非法数据而产生断错误。
+	</para>
+	<para>
+	  采用WAL(write-ahead-logging)方式，即写入数据时先写日志。
+	  日志类型有两种undo和redo。
+	  要写数据时，先将现有的数据取出存入undo日志，
+	  在数据磁盘上实际写数据，再将改写的值存入redo日志。
+	</para>
+      </sect2>
+      <sect2><title>实现</title>
+	<sect3><title>数据结构</title>
+	<para>
+	  一个act, 为一个原子操作。每个act，需分配一个actId。
+	  数据结构如下:
+	  <screen><![CDATA[
+	struct ActInfo {
+	uint64_t actId;
+	uint64_t lastLsn;
+	uint64_t undoNextLsn;
+	};
+          ]]></screen>
+	</para>
+	<para>
+	  一条日志，对应一个eggLogRecord变量。
+	  <screen><![CDATA[
+	typedef struct {
+	uint64_t prevLsn;
+	uint64_t undoNextLsn;
+	uint32_t logType;
+	uint32_t actId;
+	uint64_t filePosition;
+	uint64_t size;
+	char *fileName;
+	char *data;
+	} eggLogRecord;
+	  ]]></screen>
+	  logType含：EGGRECOVERYLOG_COMMIT， EGGRECOVERYLOG_UNDO,
+	  EGGRECOVERYLOG_REDO。每一eggLogRecord顺序地存储于日志文件上，
+	  以该记录的起始位置作为唯一性标识 Lsn (log sequence number)。
+	  eggLogRecord以链表的形式形成一次act.
+	  通过prevLsn找到同一act的上一条eggLogRecord，
+	  通过undoNextLsn找到同act的上一条EGGRECOVERYLOG_UNDO类型的eggLogRecord。
+	  一个act是一个原子操作。
+	  正常的act，以EGGRECOVERYLOG_COMMIT类型的eggLogRecord结束。
+	  异常的act，找到最后一个eggLogRecord通过undoNextLsn进行恢复。
+	</para>
+	<para >
+	  有2个文件: egg.rlog, egg.rlog.info.
+	  egg.rlog，顺序存储了eggLogRecord。
+	  egg.rlog.info，为egg.rlog的相应索引。
+	  egg.info.rlog文件数据结构:
+	  <screen><![CDATA[
+	typedef struct {
+	uint64_t Lsn;
+	uint64_t flag;
+	} eggLogInfo;
+	enum eggLogInfoFlag { LOGFLAG_WRITTEN = 'W', LOGFLAG_CHECKPOINT = 'K' };
+          ]]></screen>
+	  当eggLogRecord对应的flag==LOGFLAG_WRITTEN时，表示已经写入磁盘。
+	</para>
+	</sect3>	  
+	<sect3><title>恢复过程</title>
+	<para>
+	  恢复时，从含LOGFLAG_CHECKPOINT标志的Log record开始，
+	  将日志文件遍历一遍，
+	  将未写入数据磁盘的类型为EGGRECOVERYLOG_REDO的eggLogRecord写入数据磁盘。
+	  (未写入数据磁盘，通过LOGFLAG_WRITTEN判定。)
+	  完成后得到一批没有commit的act，
+	  通过undoNextLsn找到EGGRECOVERYLOG_UNDO类型的eggLogRecord进行恢复。
+	  恢复过程只要有写数据磁盘的操作，
+	  就在日志文件追加类型为EGGRECOVERYLOG_REDO的eggLogRecord。
+	</para>
+	</sect3>
+      </sect2>
+      <sect2><title>接口</title>
+	<para>
+	  这里的接口为egg库内部调用，外部程序一般不关心。
+	</para>
+	<para>初始化
+	  <screen><![CDATA[
+	HEGGRECOVERYHANDLE eggRecoveryLog_init(char *baseName);
+          ]]></screen>
+	</para>
+	<para>清理
+	  <screen><![CDATA[
+	int eggRecoveryLog_destroy(HEGGRECOVERYHANDLE pEggRecoveryHandle);
+          ]]></screen>
+	</para>
+	<para>开始1个act
+	  <screen><![CDATA[
+	ActInfo *eggRecoveryLog_beginact(HEGGRECOVERYHANDLE pEggRecoveryHandle);
+          ]]></screen>
+	</para>
+	<para>act的1次修改
+	  <screen><![CDATA[
+	int eggRecoveryLog_writelog(HEGGRECOVERYHANDLE pEggRecoveryHandle,
+		                    ActInfo *actInfo, uint32_t logType,
+			            char *fileName, uint64_t filePosition,
+				    void *data, uint64_t size);
+          ]]></screen>
+	</para>
+	<para>act的1次修改,确定已经写入磁盘
+	  <screen><![CDATA[
+	int eggRecoveryLog_writelog_con(HEGGRECOVERYHANDLE pEggRecoveryHandle,
+		                       ActInfo *actInfo, uint32_t logType,
+			               char *fileName, uint64_t filePosition,
+				       void *data, uint64_t size);
+          ]]></screen>
+	</para>
+	<para>结束1个act
+	  <screen><![CDATA[
+	int eggRecoveryLog_endact(HEGGRECOVERYHANDLE pEggRecoveryHandle, ActInfo *actInfo);
+          ]]></screen>
+	</para>
+	<para>恢复同时写入LOGFLAG_CHECKPOINT
+	  <screen><![CDATA[
+	int eggRecoveryLog_make_checkpoint(HEGGRECOVERYHANDLE pEggRecoveryHandle);
+          ]]></screen>
+	</para>
+	<para>恢复同时删除以前记录
+	  <screen><![CDATA[
+	int eggRecoveryLog_makeclean_checkpoint(HEGGRECOVERYHANDLE pEggRecoveryHandle);
+          ]]></screen>
+	</para>
+      </sect2>
+    </sect1>
+
+    
+    <sect1><title>cluter介绍</title>
+      <sect2><title>简介</title>
+	<para>
+	  egg cluter实现了egg的集群体系,主要采用的master－slaves的主从结构，
+	  master管理着多个slave，master机器不处理存储数据，数据也不从该机器经过，
+	  但是它下层的多个slave对数据进行整理和存储，而master就负责管理这些机器，
+	  master和slave之间的通信可以是本地文件也可以是远程socket访问。
+	</para>
+	<para>
+	  和eggHttp和eggDirectory同级别的模块，用法类似，用于指定egg集群（cluster）上的存储路径，	  
+	  <screen><![CDATA[
+	//open eggCluster handle
+	//const path_t* clusterPath : egg存储路径,格式为IP:PORT/eggName (master的hostname和cluster上egg的名字（见配置文件格式）)
+	HEGGCLUSTER EGGAPI eggCluster_open(const path_t* clusterPath);
+
+	//close eggCluster handle
+	EBOOL EGGAPI eggCluster_close(HEGGCLUSTER hCluster);
+          ]]></screen>
+	</para>
+      </sect2>
+      
+      <sect2><title>egg集群配置</title>
+	<para>
+	  配置文件默认在master主机下的/etc/egg3/cluster-eggd.cfg。配置格式如下
+	  <screen><![CDATA[
+    <CLUSTER>
+    listen 192.168.1.1:80
+	<eggExample>
+	[1,10] tcp://192.168.1.135:80/tmp/egg1  //[数据权值划分范围]  IP:PORT/CHUNKPATH (egg在chunk机上的绝对路径)
+	[11,20] tcp://192.168.1.136:80/tmp/egg2
+	[21,] tcp://192.168.1.120:80/tmp/egg3
+    </eggExample>
+    </CLUSTER>
+          ]]></screen>
+	</para>
+      </sect2>
+
+      <sect2><title>例子</title>
+	<sect3><title>添加</title>
+	<para>
+	  <screen><![CDATA[
+	HEGGHANDLE hEggHandle =  eggPath_open("cluster://192.168.1.1:80/eggExample");
+
+	// 指定weightfield
+	hIndexWrite = eggIndexWriter_open(hEggHandle,  "weightfield");
+
+	HEGGDOCUMENT hDocument = eggDocument_new();
+	//int spanpoint = 10;
+	HEGGFIELD hField1 = eggField_new("content", buf, strlen(buf), EGG_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+	HEGGFIELD hField2 = eggField_new("price", (char*)&count, sizeof(count), EGG_NOT_ANALYZED | EGG_INDEX_INT32 | EGG_STORAGE);
+
+	int spanpoint = (count%2? 50: 150);
+	HEGGFIELD hField3 = eggField_new("weightfield", (char*)&spanpoint, sizeof(spanpoint), EGG_NOT_ANALYZED | EGG_INDEX_INT32 | EGG_STORAGE);
+
+	eggDocument_add(hDocument, hField1);
+	eggDocument_add(hDocument, hField2);
+	eggDocument_add(hDocument, hField3);
+
+	eggIndexWriter_add_document(hIndexWrite, hDocument);
+
+
+	eggDocument_delete(hDocument);
+
+	//after add n document 
+	eggIndexWriter_optimize(hIndexWrite);
+
+	ImLexAnalyzer_delete(p_la);        
+	eggIndexWriter_close(hIndexWrite);
+	eggPath_close(hEggHandle);
+          ]]></screen>
+	</para>
+	</sect3>
+
+	<sect3><title>修改</title>
+	<para>
+	  <screen><![CDATA[
+	HEGGHANDLE hEggHandle =  eggPath_open("cluster://192.168.1.1:80/eggExample");
+	hIndexWrite = eggIndexWriter_open(hEggHandle,  "weightfield");
+
+	int spanpoint = 150;
+	HEGGDOCUMENT hDocument = eggDocument_new();
+	HEGGFIELD hField1 = eggField_new(fieldname, buf, strlen(buf), EGG_ANALYZED | EGG_INDEX_STRING | EGG_STORAGE);
+	eggDocument_add(hDocument, hField1);
+	HEGGFIELD hField2 = eggField_new("weightfield", (char*)&spanpoint, sizeof(spanpoint), EGG_NOT_ANALYZED | EGG_INDEX_INT32 | EGG_STORAGE);
+
+	EGGDID did;
+	EGGDID_DOCID(&did) = id;
+
+	EBOOL ret = eggIndexWriter_modify_document( hIndexWriter, did, hDocument);
+	if(ret == EGG_FALSE)
+	{
+	// modify false
+	}
+	else if(ret == EGG_MODIFY_IDINVALID)
+	{
+	// weight overflow and did is invalid
+	}
+	else if(ret == EGG_TRUE)
+	{
+	// modify ture
+	}
+	eggIndexWriter_optimize(hIndexWriter);
+	eggIndexWriter_close(hIndexWriter);
+
+	eggPath_close(hEggHandle);
+          ]]></screen>
+	</para>
+	</sect3>
+
+	<sect3><title>查询</title>
+	<para>
+	  <screen><![CDATA[
+	HEGGHANDLE hEggHandle =  eggPath_open("cluster://192.168.1.1:80/eggExample");
+	HEGGINDEXREADER hIndexReader = eggIndexReader_open(hEggHandle);
+
+	HEGGINDEXSEARCHER hIndexSearcher = eggIndexSearcher_new(hIndexReader);
+	HEGGQUERY h1, h2, h3;
+	h1 = eggQuery_new_string("content", "日本的摄影记者", strlen(日本的摄影记者), ANALYZER_CWSLEX);
+	h2 = eggQuery_new_int32("age", 20);   
+	h3 = eggQuery_new_string("name", "小明", strlen("小明"), EGG_NULL);
+	h2 = eggQuery_and(h3, h2);
+	h1 = eggQuery_or(h2, h1);
+	h3 = h2 = 0;
+
+	//填0取所有结果,非0按填的值取个数
+	HEGGTOPCOLLECTOR hTopCollector = eggTopCollector_new(0);
+
+	//对最后结果进行排序
+	//EGG_TOPSORT_WEIGHT:  按document的weight排序
+	//EGG_TOPSORT_SCORE： 按查询关键字的相关度排序（打分排序）
+	//EGG_TOPSORT_NOT：  不排序
+	//不调该函数默认是EGG_TOPSORT_NOT
+	eggTopCollector_set_sorttype(hTopCollector, EGG_TOPSORT_SCORE);
+	int ret = eggIndexSearcher_search_with_query(hIndexSearcher, hTopCollector, h1);
+	if (ret == EGG_TRUE)
+	{
+
+
+	HEGGSCOREDOC lp_score_doc = eggTopCollector_top_docs(hTopCollector);
+	count_t cnt =  eggTopCollector_total_hits(hTopCollector);
+	printf("have hit %u documents\n", cnt);
+
+	if (cnt > 0)
+	{
+	HEGGDOCUMENT lp_eggDocument = EGG_NULL;
+
+	eggIndexReader_get_document(hIndexReader,
+	lp_score_doc[cnt-1].idDoc, &lp_eggDocument);
+
+	HEGGFIELD lp_field = eggDocument_get_field(lp_eggDocument, "content");
+	unsigned len = 0;
+	char *val = eggField_get_value(lp_field, &len);
+	lp_field = 0;
+	eggDocument_delete(lp_eggDocument);
+	}
+	}
+	eggTopCollector_delete(hTopCollector);
+	eggQuery_delete(h1);
+	eggIndexSearcher_delete(hIndexSearcher);
+	eggIndexReader_close(hIndexReader);
+	eggPath_close(hCluster);
+          ]]></screen>
+	</para>
+	</sect3>	
+
+	<sect3><title>翻页</title>
+	<para>
+	  <screen><![CDATA[
+	HEGGSEARCHITER lp_iter = eggIndexSearcher_get_queryiter(hIndexSearcher);
+
+	count_t pagenum = 0;
+	printf("set pagenum : ");
+	scanf("%d", &pagenum);
+
+	eggSearchIter_reset(lp_iter, pagenum);
+	EBOOL ret = 0;
+	while(!EGGITER_OVERFIRST(lp_iter) && !EGGITER_OVERLAST(lp_iter))
+	{
+	     HEGGTOPCOLLECTOR hTopCollector = eggTopCollector_new(0);
+	     ret = eggIndexSearcher_search_with_queryiter(hIndexSearcher, hTopCollector, h1, lp_cluster_iter);
+
+	     if(ret ==EGG_FALSE)
+	     {
+	       printf("no key !\n");
+	       exit(1);
+	     }
+
+
+	     HEGGSCOREDOC lp_score_doc = eggTopCollector_top_docs(hTopCollector);
+	     count_t cnt =  eggTopCollector_total_hits(hTopCollector);
+	     index_t idx = 0;
+	     printf("count : %d\n", cnt);
+
+
+	     eggTopCollector_delete(hTopCollector);
+
+	     char c;
+	     printf("is jump result ? (y/n) ");
+	     getchar();
+	     scanf("%c", &c);
+	     if(c == 'y')
+	     {
+		int jumpcnt = 0;
+		printf("jump cnt : ");
+		scanf("%d", &jumpcnt);
+		eggSearchIter_iter(lp_iter, jumpcnt);
+	     }
+	 }
+
+	 eggSearchIter_delete(lp_iter);
+
+          ]]></screen>
+	</para>
+	</sect3>	
+	
+      </sect2>
+
+    </sect1>
+
+    
+    <sect1><title>RWS介绍</title>
+      <sect2><title>简介</title>
+      <para>
+	RWS是一个读写分离服务，它管理多个数据相同的eggDB（eggDB的数据访问方式可以是cluster，local和socket三种类型），
+	负责分流read-respon到空闲eggDB和定期同步write-respon数据到每个eggDB。
+	RWS需要egg基库支持，目前不支持删除和修改，查询只支持docid全返回模式。查询不支持范围查询。
+      </para>
+      </sect2>
+      <sect2><title>什么是读写分离</title>
+      <para>
+	读写分离简单的说是把对数据库读和写的操作分开对应不同的数据库服务器，这样能有效地减轻数据库压力，也能减轻io压力。
+	主数据库提供写操作，从数据库提 供读操作，其实在很多系统中，主要是读的操作。
+	当主数据库进行写操作时，数据要同步到从的数据库，这样才能有效保证数据库完整性。
+      </para>
+      <para>
+	主数据库同步到从数据库后，从数据库一般由多台数据库组成这样才能达到减轻压力的目的。
+	读的操作怎么样分配到从数据库上？应该根据服务器的压力把读的操作分配到服务器，而不是简单的随机分配。
+      </para>
+      </sect2>
+
+      <sect2><title>配置流程</title>
+	<sect3><title>填写配置文件</title>
+	  <para>
+	    配置模板文件（rws-eggd.cfg）经过make install会安装到/etc/egg3/目录下。
+	    下面就是配置模板文件
+        <para>
+	  <screen><![CDATA[
+<RWS>
+
+<local>
+#RWS server address
+port=3000
+ip=127.0.0.1
+
+#eggDB address
+tcp://192.168.1.135:10000/%%%/ape/eggrwsdata/1/
+tcp://192.168.1.131:10000/%%%/ape/eggrwsdata/1/
+tcp://192.168.1.143:10000/%%%/ape/eggrwsdata/1/
+tcp://192.168.1.120:10000/%%%/ape/eggrwsdata/1/
+tcp://192.168.1.146:10000/%%%/ape/eggrwsdata/1/
+tcp://192.168.1.138:10000/%%%/ape/eggrwsdata/1/
+tcp://192.168.1.139:10000/%%%/ape/eggrwsdata/1/
+
+
+# Server开始后，启动#个线程，处理连接请求。
+# 默认0，线程数# = baker egg的个数。
+connectthreadnum=0
+
+logfile=/tmp/RWS/EGGRWS.LOG
+
+# 在workdir目录下建立eggMemServer、eggDocExport所用的数据
+workdir=/tmp/RWS/
+
+# 新的数据先加入eggMemServer。eggMemServer将数据只放在内存。
+# 如果不填将忽略eggDocument_add操作
+memserverexename=/usr/local/bin/eggRWSPackageSaver
+
+# 每隔#分钟生成一个eggMemServer
+# memserverage=1d 为1天。 h为小时。
+# 默认0，=1d
+memserverage=1
+
+# 将eggMemServer的内存数据同步到baker egg上
+docexportexename=/usr/local/bin/eggRWSExportDoc
+
+counter=no
+</local>
+
+</RWS>
+      
+]]>
+      </screen>
+        </para>
+	    <itemizedlist mark='opencircle'>
+	      <listitem>
+		<para>
+		  port和ip指的是RWS服务（eggRWSIntServer）的启动端口和地址
+		</para>
+	      </listitem>
+	      <listitem>
+		<para>
+		  接下来的7行路径是7个eggDB的路径，cluster，local和socket三种类型的路径可以混搭，路径写法请参看以前的教程
+		</para>
+	      </listitem>
+	      <listitem>
+		<para>
+		  workdir是最新写入数据的临时存放路径（定期dump数据到各eggdb）
+		</para>
+	      </listitem>
+	      <listitem>
+		<para>
+		  memserverexename填eggMemServer的路径位置（eggMemServer管理还没同步到eggdb的最新数据的索引）
+		</para>
+	      </listitem>
+	      <listitem>
+		<para>
+		  memserverage代表是数据同步周期，1代表1分钟 1h代表一小时 1d代表一天
+		</para>
+	      </listitem>
+	      <listitem>
+		<para>
+		  docexportexename只的是同步是export程序的路径
+		</para>
+	      </listitem>
+	      <listitem>
+		<para>
+		  counter监控各个eggDB的状态，在stdout里打出，yes是监控，no是不监控
+		</para>
+	      </listitem>
+	    </itemizedlist>
+	  </para>
+	</sect3>
+	<sect3><title>启动eggDB</title>
+	  <para>
+	    启动eggDB各自的server，server的方式和rws-eggd.cfg里的eggDB路径，ip，port要保持一致。
+	    我上面的配置文件写的是tcp的socket方式，所以启动的服务程序是eggd
+        
+	  <screen><![CDATA[
+      $ eggd
+      ]]>
+      </screen>
+      
+	  </para>
+	</sect3>
+	<sect3><title>启动rws-eggd</title>
+	  <para>
+	    待所有eggDB启动完成以后，启动rws-eggd
+
+	  <screen><![CDATA[
+$ /usr/local/bin/rws-eggd
+      
+[1351228831.005307:3078375168:7225][INFO][eggRWSLog]: 
+
+===========================START pid[7225] Fri Oct 26 13:20:31 2012
+ 
+[1351228831.020208:3078375168:7225][CLAIM][MemManager]: nMemServer[0] +add MemServer[memServerCreator]
+[1351228831.020655:3078375168:7225][INFO][MemServerD]: come [201210261320]
+[1351228831.020784:3078375168:7225][CLAIM][MemManager]: nMemServer[1] +add MemServer[201210261320]
+[1351228831.020966:3078375168:7225][INFO][MemServerD]: -end of status [Unforked 0] count_user [0] [201210261320]
+[1351228831.021977:3078375168:7225][INFO][MemServerD]: fork pid[7231] [201210261320]
+[1351228831.022452:3078375168:7225][INFO][MemServerD]: +beg of status [Normal&Writeable&Reable 60] count_user [0] [201210261320]
+[1351228831.030009:3013000000:7225][INFO][MemServerClient]: start
+
+      ]]>
+      </screen>
+        
+	  </para>
+	</sect3>
+	<sect3><title>eggclient去连接rws-eggd</title>
+	  <para>
+	    采用egg的client去连接rws-eggd进行数据操作，因为rws-eggd本身走tcp方式通信，所以路径是socket格式
+	    <graphic fileref="resource/egg-rwsclient.png"/>
+	  </para>
+	</sect3>
+      </sect2>
+
+      <sect2><title>egg 读写分离设计</title>
+	<para>
+	该Read/Write Splitting机制由1个W-single（写机器）和多个R-cluster（读机器）组成。
+	W-single接收单天的最新数据，每天定期同步到多个R-cluster上， r-cluster接收W-single发过来的数据。
+	W-single负责响应查询申请，每次查询选择合适的r-cluster做数据源。
+	W-single为单机，index在内存里，document实体在硬盘上，R-cluster由原来的cluster集群改编而成。
+	</para>
+	<para>
+	  <orderedlist><title>用W-single／R-cluster读写数据的3种情况</title>
+	    <listitem>
+	      <para>
+		情况1： 正在写入数据（数据时间为0105），但未做optimize。
+		写响应index建立在内存里，读响应W-single会负责选择一个R-cluster（1234都可以，因为数据一样），
+		把本机内存里当天的数据和该R-cluster里的数据一并返回。
+		<graphic fileref="./resource/egg-rwsimpl1.png"/>
+	      </para>
+	    </listitem>
+	    <listitem>
+	      <para>
+		情况2：W-single开始向R-cluster进行optimize。
+		W-single只会选择部分R-cluster进行optimize，这里选 择的是1，2号R-cluster，这时候如果有读操作申请，
+		W-single会从没做optimize的R-cluster（这里是3，4号）里面选择 一个做数据源，
+		把本机内存里当天的数据和该R-cluster里的数据一并返回，保证数据实时性。
+		<graphic fileref="./resource/egg-rwsimpl2.png"/>		
+	      </para>
+	    </listitem>
+	    <listitem>
+	      <para>
+		情况3：W-single的optimize结束，开始写入新数据，这时候1，2号R-cluster上有0105那天的新数据，
+		因此1，2号R- cluster负责将包含新数据的那个egg文件拷贝到3，4号R-cluster上（不走egg程序，
+		脚本启动，直接文件传输，用scp等），期间若有 读响应，W-single会选择1，2号R-cluster做数据源，
+		待3，4号R-cluster接收完毕以后，自动重启各自的egg服务，重新加载 egg文件。
+		<graphic fileref="./resource/egg-rwsimpl3.png"/>
+	      </para>
+	    </listitem>
+	  </orderedlist>
+	</para>
+      </sect2>
+      
+    </sect1>
+
+  </chapter>

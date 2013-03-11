@@ -1,0 +1,347 @@
+
+  <chapter><title>从这开始 </title>
+     <sect1><title>必要环境 </title>
+	<sect2><title>安装libiconv </title>
+	  <para>
+        libiconv库为需要做转换的应用提供了一个iconv()的函数，以实现一个字符编码到另一个字符编码的转换。 
+	  </para>
+      <table><title></title>
+	<tgroup cols="2">        
+          <thead>
+            <row>
+              <entry>软件包</entry>
+              <entry>libiconv</entry>
+            </row>
+          </thead>
+          <tbody>
+            <row>
+              <entry>版本</entry>
+              <entry>>=1.13.1</entry>
+            </row>
+            <row>
+              <entry>安装方式</entry>
+              <entry>源码编译</entry>
+            </row>
+            <row>
+              <entry>下载</entry>
+              <entry><ulink url="http://www.gnu.org/s/libiconv/#downloading">http://www.gnu.org/s/libiconv/#downloading</ulink></entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </table>
+      <screen>
+        <![CDATA[
+         tar zxvf libiconv-1.13.1.tar.gz
+         cd libiconv-1.13.1
+         ./configure
+         make
+         sudo make install
+        ]]>
+      </screen>
+	</sect2>
+	
+	<sect2><title>安装cppunit </title>
+	  <para>
+        CppUnit是XUnit家族中的一员，它是一个专门面向C++的测试框架。
+      
+	  </para>     
+
+      <table><title></title>
+	<tgroup cols="2">        
+          <thead>
+            <row>
+              <entry>软件包</entry>
+              <entry>cppunit</entry>
+            </row>
+          </thead>
+          <tbody>
+            <row>
+              <entry>版本</entry>
+              <entry>>=1.11</entry>
+            </row>
+            <row>
+              <entry>安装方式</entry>
+              <entry>    deb/rpm</entry>
+            </row>
+            <row>
+              <entry>下载</entry>
+              <entry>           </entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </table>
+
+      <para>
+        ubuntu:
+      </para>
+      <screen>
+        <![CDATA[
+         sudo apt-get install libcppunit-1.12-1 libcppunit-dev
+        ]]>
+      </screen>
+
+      <para>
+        radhat
+      </para>
+
+      <screen>
+        <![CDATA[
+          rpm -ivh cppunit-1.11.0-2.el4.i386.rpm
+          rpm -ivh cppunit-devel-1.11.0-2.el4.i386.rpm
+        ]]>
+      </screen>
+
+	</sect2>
+	
+	<sect2><title>安装glib </title>
+      <para>
+        GLib是GTK+和GNOME工程的基础底层核心程序库，是一个综合用途的实用的轻量级的C程序库，它提供C语言的常用的数据结构的定义、相关的处理函数，有趣而实用的宏，可移植的封装和一些运行时机能，如事件循环、线程、动态调用、对象系统等的API。它能够在类UNIX的操作系统平台（如 LINUX， HP-UNIX等），WINDOWS，OS2和BeOS等操作系统台上运行。
+	  </para>
+
+      <table><title></title>
+	<tgroup cols="2">        
+          <thead>
+            <row>
+              <entry>软件包</entry>
+              <entry>glib</entry>
+            </row>
+          </thead>
+          <tbody>
+            <row>
+              <entry>版本</entry>
+              <entry> >=2.24</entry>
+            </row>
+            <row>
+              <entry>安装方式</entry>
+              <entry>源码编译</entry>
+            </row>
+            <row>
+              <entry>下载</entry>
+              <entry><ulink url="http://developer.gnome.org/glib/">http://developer.gnome.org/glib/</ulink></entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </table>
+
+      <screen>
+        <![CDATA[
+        tar zxvf glib-2.24.0.tar.gz
+        cd glib-2.24.0
+        ./configure
+        make
+        sudo make install
+        ]]>
+      </screen>
+
+
+	</sect2>
+	
+	<sect2><title>安装libssl </title>
+      <para>
+      SSL(Secure Sockets Layer 安全套接层),及其继任者传输层安全（Transport Layer Security，TLS）是为网络通信提供安全及数据完整性的一种安全协议。TLS与SSL在传输层对网络连接进行加密。(该软件包大多系统会自带，可用 ［ls /usr/lib /usr/local/lib |grep libssl］ 检查该软件是否已经安装)
+	  </para>
+
+      <table><title></title>
+	<tgroup cols="2">        
+          <thead>
+            <row>
+              <entry>软件包</entry>
+              <entry>openssl</entry>
+            </row>
+          </thead>
+          <tbody>
+            <row>
+              <entry>版本</entry>
+              <entry>>=0.9.2</entry>
+            </row>
+            <row>
+              <entry>安装方式</entry>
+              <entry>源码编译</entry>
+            </row>
+            <row>
+              <entry>下载</entry>
+              <entry><ulink url="http://www.openssl.org/">http://www.openssl.org/</ulink></entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </table>
+
+      <screen>
+        <![CDATA[
+        tar zxvf openssl-1.0.0d.tar.gz
+        cd openssl-1.0.0d
+        ./config
+        make
+        sudo make install
+        ]]>
+      </screen>
+
+	</sect2>
+	
+	<sect2><title>安装bzip2 </title>
+      <para>
+       <![CDATA[
+       bzip2 是一个基于Burrows-Wheeler 变换的无损压缩软件，压缩效果比传统的LZ77/LZ78压缩算法来得好。它是一款免费软件。可以自由分发免费使用。它广泛存在于UNIX && LINUX的许多发行版本中。bzip2能够进行高质量的数据压缩。它利用先进的压缩技术，能够把普通的数据文件压缩10%至15%，压缩的速度和解压的效率都非常高！支持现在大多数压缩格式，包括tar、gzip 等等。
+       ]]>
+	  </para>
+
+
+      <table><title></title>
+	<tgroup cols="2">        
+          <thead>
+            <row>
+              <entry>软件包</entry>
+              <entry>bzip2</entry>
+            </row>
+          </thead>
+          <tbody>
+            <row>
+              <entry>版本</entry>
+              <entry>>=1.0</entry>
+            </row>
+            <row>
+              <entry>安装方式</entry>
+              <entry>源码编译</entry>
+            </row>
+            <row>
+              <entry>下载</entry>
+              <entry><ulink url="http://www.digistar.com/bzip2/">http://www.digistar.com/bzip2/</ulink></entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </table>
+
+      <screen>
+        <![CDATA[
+        tar zxvf bzip2-1.0.1.tar.gz
+        cd bzip2-1.0.1
+        ./configure
+        make
+        sudo make install
+        ]]>
+      </screen>
+
+	</sect2>
+	
+	<sect2><title>安装cws </title>
+      <para>
+      cws是我们公司自主开发的基于语义的分词库，支持英文中文等多种分词
+	  </para>
+
+      <table><title></title>
+	<tgroup cols="2">        
+          <thead>
+            <row>
+              <entry>软件包</entry>
+              <entry>cws</entry>
+            </row>
+          </thead>
+          <tbody>
+            <row>
+              <entry>版本</entry>
+              <entry>>=1.0</entry>
+            </row>
+            <row>
+              <entry>安装方式</entry>
+              <entry>源码编译</entry>
+            </row>
+            <row>
+              <entry>下载</entry>
+              <entry>cvs download</entry>
+            </row>
+          </tbody>
+        </tgroup>
+      </table>
+
+      <screen>
+        <![CDATA[
+        export CVSROOT=:pserver:username@222.73.218.46:2401/ImRoBot5
+        cvs login
+        cvs co cws
+
+        cd cws
+        ./configure
+        make
+        sudo make install
+        ]]>
+      </screen>
+
+	</sect2>
+	
+	
+     </sect1>
+     <sect1 id="libegg"><title>安装egg基础库</title>
+      <screen>
+        <![CDATA[
+        export CVSROOT=:pserver:username@222.73.218.46:2401/ImRoBot5 
+        cvs login 
+        cvs co egg3
+        cd $EGG_HOME ./configure
+        cd src make
+        make install
+        ]]>
+      </screen>
+
+	<literallayout>
+       <![CDATA[
+配置路径: 
+   在EGG3项目的conf文件夹下有一份egg的默认配置文件（egg.cfg），在configure执行时可设置--with-conf=path来指定egg.cfg的路径，如果不指定，egg.cfg安装在$prefix/etc,如果$prefix本身也未指定该配置文件会被默认安装在/etc/egg3/下
+ 
+
+
+
+ 
+下面是一份egg.cfg的例子
+        ]]>
+	</literallayout>
+     <screen>
+        <![CDATA[
+
+    <CORECFG>
+
+       <ANALYZER>
+          ImCnLexAnalyzer  /usr/local/lib/libcwsplugin.la
+          ImCyLexAnalyzer  /usr/local/lib/libcwsplugin.la
+          ImCwsLexAnalyzer  /usr/local/lib/libcwsplugin.la
+          ImC2LexAnalyzer  /usr/local/lib/libcwsplugin.la
+          ImCxLexAnalyzer  /usr/local/lib/libcwsplugin.la
+          ImCwnLexAnalyzer  /usr/local/lib/libcwsplugin.la
+          ImCbLexAnalyzer  /usr/local/lib/libcwsplugin.la
+          ImCs1LexAnalyzer  /usr/local/lib/libcwsplugin.la
+          ImEnLexAnalyzer  /usr/local/lib/libcwsplugin.la
+      </ANALYZER>
+
+      basepath=/tmp/
+      logpath=/tmp/egg.log
+
+      #0:debug 1:info 2:warn 3:error 4:claim
+      loglevel=1
+
+    </CORECFG>
+
+        
+        ]]>
+      </screen>
+
+	<literallayout id = "egg_basepath">
+        <![CDATA[
+
+      解释一下上面的内容
+
+      1. <CORECFG>和</CORECFG>之间的内容为egg.cfg的有效内容，写在之外被认为是无效
+
+      2. <ANALYZER>和</ANALYZER>之间是egganalyzer的信息，配置格式: ANALYZER ${ANALYZER_name} ${ANALYZER_lib_path}
+
+      3. basepath是为egg的数据文件设置一个基础的路径，egg的所有数据文件路径将以该路径为根往下在建子路径。
+
+      4. logpath指定egg的日志文件路径(仅仅是基础库的日志)
+
+      5. loglevel指定日志模式级别，0为debug模式，1为info模式，2为warn模式，3为error模式，4为claim模式，级别是向上包容的，也就是说选择了debug模式，你将看见4个模式的所有日志
+
+        ]]>
+	</literallayout>
+      
+	
+     </sect1>
+     
+  </chapter>

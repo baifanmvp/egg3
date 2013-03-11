@@ -1,0 +1,13 @@
+1.
+xmlto html -o m m.xml
+
+Linux how to
+xsltproc --stringparam html.stylesheet  my.css  /usr/share/xml/docbook/stylesheet/docbook-xsl/html/chunk.xsl  m.xml
+xsltproc --stringparam  section.label.includes.component.label 1 --stringparam  section.autolabel 1  --stringparam html.stylesheet    my.css  /usr/share/xml/docbook/stylesheet/docbook-xsl/html/docbook.xsl   m.xml >1.html
+xsltproc --stringparam  section.label.includes.component.label 1 --stringparam  section.autolabel 1  --stringparam html.stylesheet    my.css  /usr/share/xml/docbook/stylesheet/docbook-xsl/html/docbook.xsl   m.xml >1.html
+xsltproc --stringparam  section.label.includes.component.label 1 --stringparam  section.autolabel 1  --stringparam html.stylesheet    my.css  /usr/share/xml/docbook/stylesheet/docbook-xsl/html/chunk.xsl   m.xml 
+xsltproc --stringparam  section.label.includes.component.label 1 --stringparam  section.autolabel 1  --stringparam html.stylesheet    my.css  /usr/share/xml/docbook/stylesheet/docbook-xsl/html/chunk.xsl   m.xml 
+
+MacOS how to:
+sudo port install docbook-xsl docbook-xsl-ns
+xsltproc  --stringparam html.stylesheet my.css /opt/local/share/xsl/docbook-xsl/html/chunk.xsl  ./m.xml

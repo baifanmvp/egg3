@@ -1,0 +1,106 @@
+#!/bin/bash 
+#
+# rws-eggd        Startup script for rws-eggd
+#
+# chkconfig: - 85 15
+# description: rws-eggd.
+# processname: rws-eggd
+# pidfile: 
+# config: 
+#
+### BEGIN INIT INFO
+# Provides: rws-eggd
+# Required-Start: 
+# Required-Stop: 
+# Should-Start: 
+# Short-Description: start and stop rws-eqld
+# Description: rws-eggd
+### END INIT INFO
+
+#set -e
+
+prog=$(basename $0)
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+if [ ! -x "${RWSEGGD}" ] ; then
+    RWSEGGDCTL=$(PATH=/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/sbin which rws-eggd-ctl)
+    [ -n "${RWSEGGDCTL}" ] || { echo "cannt find execute rws-eggd-ctl"; exit 255; }
+fi
+rwseggd=$prog
+
+OPTIONS=""
+rwseggd_pid=
+
+start() {
+        echo -n $"Starting $prog: "
+	
+        rwseggd_pid="$(pidofproc $rwseggd)"
+	
+	if [ -n "$rwseggd_pid" ]; then
+	    failure
+	    echo
+	    echo "pid $rwseggd_pid"
+	    return 1
+	fi
+
+        $RWSEGGDCTL hth start
+
+	$RWSEGGDCTL hth check
+	
+	if [ $? = 0 ]; then
+	    success
+            echo
+            RETVAL=0
+	else
+            failure
+            echo
+            RETVAL=2
+        fi
+        return $RETVAL
+}
+stop() {
+        echo -n $"Stopping $prog: "
+        $RWSEGGDCTL hth stop
+        RETVAL=$?
+        echo
+}
+
+
+case "$1" in
+  start)
+        start
+        ;;
+  stop)
+        stop
+        ;;
+  status)
+
+        rwseggd_pid="$(pidofproc $rwseggd)"
+	
+        if [ -z "$rwseggd_pid" ] ; then
+            echo $prog is stopped
+            RETVAL=3
+        else
+	    $RWSEGGDCTL hth check
+
+	    if [ $? = 0]; then
+		status $rwseggd
+		RETVAL=$?
+	    else
+		RETVAL=$?
+	    fi
+		
+        fi
+        ;;
+  restart)
+        stop
+        start
+        ;;
+  *)
+        echo $"Usage: $prog {start|stop|restart|status}"
+        exit 1
+esac
+
+exit $RETVAL

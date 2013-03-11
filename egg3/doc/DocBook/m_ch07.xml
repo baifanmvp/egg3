@@ -1,0 +1,348 @@
+<chapter>
+  <title>附录</title>
+   <sect1><title>以RPM方式安装</title>  
+    <para>下载egg3安装包</para>
+    <screen><prompt>$</prompt> <userinput>wget http://203.156.244.227/coolingsearch/x86_64/redhat6.1/egg-3-0.x86_64.rpm</userinput></screen>
+    <para>下载CRF++安装包</para>
+    <screen><prompt>$</prompt> <userinput>wget http://203.156.244.227/coolingsearch/x86_64/redhat6.1/CRFPP-1.0-1.x86_64.rpm</userinput></screen>
+    <para>下载postagger安装包</para>
+    <screen><prompt>$</prompt> <userinput>wget http://203.156.244.227/coolingsearch/x86_64/redhat6.1/postagger-1.0-1.x86_64.rpm</userinput></screen>
+    <para>下载中文分词安装包</para>
+    <screen><prompt>$</prompt> <userinput>wget http://203.156.244.227/coolingsearch/x86_64/redhat6.1/cws-1.0-1.x86_64.rpm</userinput></screen>
+    <para>安装egg3</para>
+    <screen><prompt>$</prompt> <userinput>sudo rpm -ivh egg-3-0.x86_64.rpm</userinput><computeroutput><![CDATA[
+Preparing...                ########################################### [100%]
+   1:egg-3-0             ########################################### [100%]
+]]></computeroutput></screen>
+    <para>安装CRF++</para>
+    <screen><prompt>$</prompt> <userinput>sudo rpm -ivh ./CRFPP-1.0-1.x86_64.rpm</userinput><computeroutput><![CDATA[
+Preparing...                ########################################### [100%]
+   1:CRFPP                  ########################################### [100%]
+]]></computeroutput></screen>
+    <para>安装postagger</para>
+    <screen><prompt>$</prompt> <userinput>sudo rpm -ivh ./postagger-1.0-1.x86_64.rpm</userinput><computeroutput><![CDATA[
+Preparing...                ########################################### [100%]
+   1:postagger              ########################################### [100%]
+]]></computeroutput></screen>
+    <para>安装中文分词</para>
+    <screen><prompt>$</prompt> <userinput>sudo rpm -ivh ./cws-1.0-1.x86_64.rpm</userinput><computeroutput><![CDATA[
+Preparing...                ########################################### [100%]
+   1:cws                    ########################################### [100%]
+]]></computeroutput></screen>
+
+
+   </sect1>
+
+
+
+
+   <sect1><title>rws安装实例</title>
+
+   <sect2><title>先决条件</title>
+   
+   <screen>
+     4台机器:
+     172.29.2.150(硬件较好)
+     172.29.2.151(硬件较好)
+     172.29.2.148
+     172.29.2.153
+
+     上述已装好openssh，有root帐号
+     
+   </screen>
+   
+   </sect2>
+   
+   <sect2><title>方案</title>
+
+   <para>
+     <screen>
+     分80个egg,每星期一个。 从2012-01-01开始。
+
+     2013-01-01以前的放在 172.29.2.148，172.29.2.153上
+     2013-01-01以后的放在 172.29.2.150，172.29.2.151上
+     </screen>
+   </para>
+   
+   <para>
+     <screen>
+     eggd: 实际写入数据
+     cluster-eggd: 将数据分配至不同目录
+     rws-eggd: 将数据双备写入eggd
+     rws-eggd: 对外接口
+     </screen>
+
+     <screen>
+     172.29.2.150: 运行rws-eggd, cluster-eggd, eggd
+     172.29.2.151: 运行cluster-eggd, eggd
+     172.29.2.148: 运行eggd
+     172.29.2.153: 运行eggd
+
+     </screen>
+   </para>
+   
+
+   <para>
+     <screen>
+     各机器egg数据统一存放在目录: /ape/egg3data/bas2db/
+     </screen>
+   </para>
+   
+   </sect2>
+   
+   <sect2><title>安装环境</title>
+   
+
+   <sect3><title>用户</title>
+   <para>
+     为方便管理，所有操作均使用ape用户。
+   </para>
+
+   
+   在172.29.2.150 172.29.2.151 172.29.2.148 172.29.2.153
+   
+   <orderedlist>
+     <listitem>
+       <para>
+         增加ape用户，通过root
+         <screen>
+           # useradd -m -s /bin/bash ape
+         </screen>
+       </para>
+     </listitem>
+
+     
+     <listitem>
+       <para>
+         编辑/etc/sudoers，使ape能通过sudo获得root权限
+       </para>
+     </listitem>
+     
+   </orderedlist>
+   </sect3>
+
+   
+   <sect3><title>ssh</title>
+   
+   <para>
+     为使能从172.29.2.150上免密码登录到各台机器需创建免密码的ssh登录环境。
+   </para>
+
+      <screen>
+<![CDATA[     
+在172.29.2.150上执行,生成id_rsa.pub文件
+$ mkdir -p $HOME/.ssh
+$ chmod 0700 $HOME/.ssh
+$ ssh-keygen -t rsa -f $HOME/.ssh/id_rsa -P ''
+$ cat $HOME/.ssh/id_rsa
+ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAvMKqi/...
+
+在172.29.2.150 172.29.2.151 172.29.2.148 172.29.2.153上
+$ mkdir -p $HOME/.ssh
+$ chmod 0700 $HOME/.ssh
+$ mkdir -p $HOME/.ssh
+$ chmod 0700 $HOME/.ssh
+$ cat >>$HOME/.ssh/authorized_keys <<EOF
+ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAvMKqi/...
+EOF
+$ chmod 0600 $HOME/.ssh/authorized_keys
+   
+]]>
+</screen>
+
+   </sect3>
+
+   <sect3><title>egg</title>
+   <para>
+     安装egg，可通过rpm包装。
+   </para>
+   </sect3>
+   
+   </sect2>
+   
+
+   <sect2><title>配置</title>
+
+   <sect3><title>目的</title>
+   <para>
+     在各台机器上，配置文件位于/etc/egg3下。
+     
+     <screen>
+       在172.29.2.150上生成
+       /etc/egg3/rws-eggd.cfg
+       /etc/egg3/rws-eggd-ctl.cfg
+       /etc/egg3/eggd.cfg
+       /etc/egg3/cluster-eggd.cfg
+
+
+       在172.29.2.151上生成
+       /etc/egg3/eggd.cfg
+       /etc/egg3/cluster-eggd.cfg
+
+       在172.29.2.148上生成
+       /etc/egg3/eggd.cfg
+
+       在172.29.2.153上生成
+       /etc/egg3/eggd.cfg
+       
+     </screen>
+   </para>
+   <para>
+     
+     在172.29.2.150，172.29.2.151，172.29.2.148，172.29.2.153上生成
+     必要的数据目录
+     
+   </para>
+   </sect3>
+
+   <sect3><title>生成配置和目录</title>
+
+   <para>
+     通过编写deploy.cfg文件，运行rws-conf-deploy.pl，自动生成上述配置文件。
+   </para>
+
+   
+   <para>
+   
+   生成deploy.cfg文件,内容如下
+   <screen>
+<![CDATA[
+basedir=/ape/egg3data/bas2db/
+
+user.a.ip=172.29.2.150
+user.a.name=ape
+user.b.ip=172.29.2.151
+user.b.name=ape
+user.d.ip=172.29.2.148
+user.d.name=ape
+user.e.ip=172.29.2.153
+user.e.name=ape
+
+cluster.1.ip=172.29.2.150
+cluster.2.ip=172.29.2.151
+
+cluster.news.start=1325347200
+cluster.news.step=604800
+cluster.news.count=80
+cluster.1.news.a.ip=${eggd.4.ip}
+cluster.1.news.a.range=1-52
+cluster.1.news.b.ip=${eggd.1.ip}
+cluster.1.news.b.range=53-80
+cluster.2.news.a.ip=${eggd.5.ip}
+cluster.2.news.a.range=1-52
+cluster.2.news.b.ip=${eggd.2.ip}
+cluster.2.news.b.range=53-80
+
+
+eggd.1.ip=172.29.2.150
+eggd.2.ip=172.29.2.151
+eggd.4.ip=172.29.2.148
+eggd.5.ip=172.29.2.153
+
+rws.news.ip=172.29.2.150
+rws.news.port=12001
+rws.news.eggdb=${cluster.1.ip},${cluster.2.ip}
+]]>
+   </screen>
+
+   <screen>
+$ rws-conf-deploy.pl deploy.cfg
+$ ls 
+deploy.cfg
+rws-eggd.cfg.127.0.0.1
+rws-eggd-ctl.cfg.127.0.01
+mkdir.172.29.2.153
+mkdir.172.29.2.151
+mkdir.172.29.2.150
+mkdir.172.29.2.148
+eggd.cfg.172.29.2.153
+eggd.cfg.172.29.2.151
+eggd.cfg.172.29.2.150
+eggd.cfg.172.29.2.148
+cluster-eggd.cfg_2.172.29.2.151
+cluster-eggd.cfg_1.172.29.2.150
+   </screen>
+   
+   </para>
+
+   <para>
+     手动拷贝配置
+   </para>
+
+   
+   <screen>
+     登录172.29.2.151
+     
+     将cluster-eggd.cfg_2.172.29.2.151拷至/etc/egg3/cluster-eggd.cfg
+
+     ...
+   </screen>
+   
+   <para>
+     手动生成文件夹
+
+   <screen>
+     登录172.29.2.153
+     
+     $ cat mkdir.172.29.2.153 | xargs mkdir -p
+
+     ...
+   </screen>
+   
+   </para>
+
+   </sect3>
+   </sect2>
+
+
+   <sect2><title>启动rws</title>
+   在172.29.2.150上执行
+<screen>
+$ rws-eggd-ctl hth start
+</screen>
+   </sect2>
+
+
+   <sect2><title>检查rws的各进程</title>
+   在172.29.2.150上执行
+<screen>
+$ rws-eggd-ctl hth check
+do_ssh_cmd 172.29.2.153 /usr/local/bin/rws-eggd-ctl svc check
+running eggd pid[19074]
+do_ssh_cmd 172.29.2.151 /usr/local/bin/rws-eggd-ctl svc check
+running eggd pid[6108]
+do_ssh_cmd 172.29.2.148 /usr/local/bin/rws-eggd-ctl svc check
+running eggd pid[21636]
+do_ssh_cmd 172.29.2.150 /usr/local/bin/rws-eggd-ctl svc check
+running eggd pid[1982]
+do_ssh_cmd 172.29.2.151 /usr/local/bin/rws-eggd-ctl info check
+running cluster-eggd pid[6168]
+do_ssh_cmd 172.29.2.150 /usr/local/bin/rws-eggd-ctl info check
+running cluster-eggd pid[2046]
+do_ssh_cmd 172.29.2.150 /usr/local/bin/rws-eggd-ctl rws check
+running rws-eggd pid[2115]
+
+</screen>
+   </sect2>
+
+   <sect2><title>重启rws</title>
+   在172.29.2.150上执行
+<screen>
+$ rws-eggd-ctl hth restart
+</screen>
+   </sect2>
+
+   <sect2><title>停止rws</title>
+   在172.29.2.150上执行
+<screen>
+$ rws-eggd-ctl hth stop
+</screen>
+   </sect2>
+   
+   </sect1>
+
+	 
+
+
+</chapter>
+

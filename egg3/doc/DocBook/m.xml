@@ -1,0 +1,38 @@
+<!--
+   <?xml version="1.0" encoding="UTF-8"?>
+-->
+<?xml-stylesheet href="my.css" type="text/css"?>
+
+
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" 
+	"http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"
+	  [
+ 	  <!ENTITY ch01 SYSTEM "./m_ch01.xml">
+	  <!ENTITY ch02 SYSTEM "./m_ch02.xml">
+	  <!ENTITY ch03 SYSTEM "./m_ch03.xml">
+	  <!ENTITY ch04 SYSTEM "./m_ch04.xml">
+	  <!ENTITY ch05 SYSTEM "./m_ch05.xml">
+	  <!ENTITY ch06 SYSTEM "./m_ch06.xml">
+	  <!ENTITY ch07 SYSTEM "./m_ch07.xml">
+	  ]>
+
+<book id="egg" lang="zh-cn">
+
+  <title>egg使用手册</title>
+  <bookinfo>
+    <legalnotice>
+    <para>
+    </para>
+    </legalnotice>
+  </bookinfo>
+  
+&ch01;
+&ch02;
+&ch03;
+&ch04;
+&ch05;
+&ch06;
+&ch07;
+
+
+</book>

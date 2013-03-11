@@ -1,0 +1,40 @@
+#!/bin/bash
+
+EGGRWSINTSERVER=`which rws-eggd`
+cfg=/etc/egg3/rws-eggd.cfg
+
+start_eggRWSIntServer()
+{
+    $EGGRWSINTSERVER $1 &>>/dev/null &
+}
+
+
+filter()
+{
+    local s
+    s=`expr "$1" : "[ 	]*\(.*\)[ 	]*"`
+    if [ "x$s" = "x" ]; then
+	return 1
+    elif [ "$s" = "RWS" ]; then
+	return 1
+    fi
+    return 0
+	
+}
+
+start_many_eggRWSIntServer()
+{
+    local line name
+    while : ; do
+	read -r line || break
+	name=`expr "$line" : "[ 	]*<\([a-zA-Z_0-9]*\)>"`
+	
+	if [ -n "$name" ] && filter $name;then
+	    start_eggRWSIntServer $name
+	fi
+    done
+    IFS=$IFSold
+    
+}
+
+start_many_eggRWSIntServer <$cfg

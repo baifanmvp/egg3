@@ -1,0 +1,11 @@
+B+ Tree删除后的节点再利用。
+Redo&Undo log。  P1
+多进程访问加锁。    P2
+对于分词域加入B+ Tree倒排索引。 P2
+对于不分词域加入B+ Tree。        P1
+打分，id列表加入当前key在id指定document中的偏移量，默认前5个。id列表，与偏移量列表分开存放，每块连续。    P1。
+Query结构实现。
+
+明天讨论Egg2结构调整。move B+Tree into api
+
+

@@ -1,0 +1,27 @@
+#!/bin/bash
+
+export PATH=/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/sbin
+
+BZIP2=`which bzip2`
+CPIO=`which cpio`
+if ! [ -x "$BZIP2" ]; then
+    echo >&2 need bzip2
+    exit 1
+fi
+if ! [ -x "$CPIO" ]; then
+    echo >&2 need cpio
+    exit 1
+fi
+
+
+EGG_DIR=$1
+
+if ! [ -d $EGG_DIR -a -x $EGG_DIR ]; then
+    echo >&2 $EGG_DIR not directory or cannot access
+    exit 1
+fi
+
+cd $EGG_DIR
+
+#$BZIP2 -cd | $CPIO --quiet -H ustar -idu
+$CPIO --quiet -H ustar -idu 

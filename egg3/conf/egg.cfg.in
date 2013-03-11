@@ -1,0 +1,17 @@
+<CORECFG>
+<ANALYZER>
+   ImCnLexAnalyzer  @LIBDIR@/libcwsplugin.la
+   ImCyLexAnalyzer  @LIBDIR@/libcwsplugin.la
+    ImCwsLexAnalyzer  @LIBDIR@/libcwsplugin.la
+    ImC2LexAnalyzer  @LIBDIR@/libcwsplugin.la
+    ImCxLexAnalyzer  @LIBDIR@/libcwsplugin.la
+    ImCwnLexAnalyzer  @LIBDIR@/libcwsplugin.la
+    ImCbLexAnalyzer  @LIBDIR@/libcwsplugin.la
+    ImCs1LexAnalyzer  @LIBDIR@/libcwsplugin.la
+    ImEnLexAnalyzer  @LIBDIR@/libcwsplugin.la
+</ANALYZER>
+basepath=/tmp/
+logpath=/tmp/egg.log
+#0:debug 1:info 2:warn 3:error 4:claim
+loglevel=1
+</CORECFG>
